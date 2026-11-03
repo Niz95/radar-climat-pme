@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Climat PME Risques</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="style.css?v=10">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Risques climatiques physiques</h1>
+      <p class="sub">Premier repérage pour PME européennes, à partir des données du Copernicus Climate Change Service</p>
+      <p class="sub small">Outil gratuit et indépendant, non affilié à Copernicus, à l'ECMWF ni à la Commission européenne · <a href="mentions.html">Mentions et limites</a></p>
+    </div>
+    <button id="print" class="ghost" type="button">Imprimer / PDF</button>
+  </header>
+
+  <div id="demo-banner" class="banner" hidden>
+    Données de démonstration fictives : ne pas utiliser pour un diagnostic. Lancez les scripts CDS pour charger les vraies données.
+  </div>
+
+  <main class="layout">
+    <section class="panel controls">
+      <form id="search-form">
+        <label for="address">Adresse du site</label>
+        <div class="row">
+          <input id="address" type="search" placeholder="ex. 12 rue de la Gare, Lyon" autocomplete="off" required>
+          <button type="submit">Chercher</button>
+        </div>
+        <ul id="results" class="results"></ul>
+        <p class="hint">Ou cliquez directement sur la carte. L'adresse est envoyée au service de recherche d'OpenStreetMap ; l'outil n'enregistre rien.</p>
+      </form>
+
+      <label for="sector">Secteur d'activité</label>
+      <select id="sector"></select>
+      <p class="hint">Fixe la sensibilité de départ de votre activité à chaque aléa.</p>
+
+      <span class="label">Horizon (niveau de réchauffement mondial)</span>
+      <div id="gwl" class="segmented" role="radiogroup"></div>
+      <p class="hint">Les années sont indicatives : elles correspondent au moment où le réchauffement mondial atteindrait ce niveau selon la trajectoire européenne de référence.</p>
+
+      <div id="sites-block" hidden>
+        <span class="label">Sites analysés</span>
+        <ul id="sites" class="sites"></ul>
+        <p class="hint">Cliquez sur un site pour afficher son rapport. Sur la carte, la zone colorée est la région dont les données sont utilisées.</p>
+      </div>
+    </section>
+
+    <section class="panel quiz">
+      <details open>
+        <summary>Votre entreprise <span class="muted">· 8 questions, communes à tous les sites</span></summary>
+        <p class="hint">Chaque « oui » augmente d'un cran la sensibilité aux aléas indiqués sous la question. En cas de doute, laissez décoché.</p>
+        <div id="questions" class="questions"></div>
+      </details>
+    </section>
+
+    <section class="panel map-panel">
+      <div id="map"></div>
+    </section>
+  </main>
+
+  <section id="report" class="report" hidden></section>
+
+  <footer class="foot">
+    <p><strong>Sources.</strong> Contient des informations modifiées du Copernicus Climate Change Service (2026),
+      « Aggregated climate indicators for Europe » v2.0 (CDS, licence CC-BY 4.0) : moyenne multi-modèles par région NUTS 2, fourchette 17–83 % entre modèles.
+      Ni la Commission européenne ni l'ECMWF ne sont responsables de l'usage qui peut être fait de ces informations.
+      © EuroGeographics pour les limites administratives (GISCO, Eurostat). Recherche d'adresse et fond de carte : © contributeurs OpenStreetMap (ODbL).</p>
+    <p><strong>Limites.</strong> Projections issues de modèles climatiques, pas des prévisions. Les valeurs sont des moyennes sur de grandes régions
+      (NUTS 2, par exemple une région française) et ne décrivent pas le risque à l'échelle d'un bâtiment, notamment pour les inondations :
+      consultez aussi les cartes officielles de votre pays. Les sensibilités sectorielles et plusieurs seuils sont des hypothèses du prototype.
+      Outil fourni en l'état, à titre d'information : ni conseil professionnel, ni notation, ni attestation de conformité ;
+      ne pas l'utiliser seul pour une décision d'investissement, de financement ou d'assurance. <a href="mentions.html">Mentions et limites complètes</a></p>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script type="module" src="app.js?v=11"></script>
+</body>
+</html>

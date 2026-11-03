@@ -1,0 +1,14 @@
+# Environnement Python local
+.venv/
+__pycache__/
+
+# Fichiers bruts Copernicus et intermédiaires (regénérables avec scripts/fetch_cds.py)
+# (dossier racine uniquement : web/data/ contient les données de l'application et doit être publié)
+/data/
+
+# Réglages locaux de l'éditeur et de Claude
+.claude/
+.vscode/
+
+# Ne jamais publier une clé API
+.cdsapirc

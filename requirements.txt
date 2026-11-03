@@ -1,0 +1,6 @@
+cdsapi
+xarray
+h5netcdf
+netCDF4
+pandas
+h5py
