@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mentions et limites</title>
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <main class="legal">
@@ -44,6 +44,10 @@
         officielles des zones inondables de votre pays.</li>
       <li>Les sensibilités par secteur et plusieurs seuils sont des hypothèses du prototype, signalées comme
         « convention du prototype » dans l'annexe du rapport.</li>
+      <li>Pour le vent, les données mesurent seulement si les jours de vent extrême deviennent plus fréquents, pas le
+        niveau de risque de tempête actuel : l'aléa est noté « Stable » quand il n'augmente pas.</li>
+      <li>Un site hors des contours simplifiés des régions (littoral, île, pays voisin non couvert) est rattaché à la
+        région la plus proche, jusqu'à 30 km. Les régions d'outre-mer et certaines îles éloignées n'ont pas de données.</li>
       <li>Les crues de rivières, la submersion marine, la grêle et les mouvements de terrain ne sont pas encore couverts.</li>
     </ul>
 
@@ -52,6 +56,9 @@
       climat moyen attendu à un niveau de réchauffement mondial donné (+1,5 °C, +2 °C, +3 °C). Les années associées
       (2030, 2050, 2100) sont indicatives et suivent la trajectoire de référence européenne. La fourchette affichée
       sous les valeurs indique l'écart entre modèles : 2 modèles sur 3 se situent dans cet intervalle.</p>
+    <p>La référence est la moyenne 1991–2020, reconstituée à partir des projections à 1 ou 2 jours près. Le climat
+      de l'année en cours est déjà plus chaud que cette référence. L'ensemble de modèles n'est pas exactement le même
+      d'un niveau de réchauffement à l'autre : de petits allers-retours entre deux horizons sont possibles.</p>
 
     <h2>Absence de garantie</h2>
     <p>L'outil est fourni en l'état, à titre d'information, sans garantie d'exactitude ni d'exhaustivité. Il ne
@@ -64,6 +71,8 @@
       et n'enregistre ni les adresses saisies, ni les réponses au questionnaire. Pour situer un site, l'adresse saisie
       est envoyée au service de recherche d'adresse d'OpenStreetMap (Nominatim), et l'affichage de la carte appelle les
       serveurs de tuiles d'OpenStreetMap, selon leurs propres règles de confidentialité.</p>
+    <p>Comme pour tout site web, les services techniques qui livrent les pages voient passer votre adresse IP :
+      GitHub Pages, qui héberge l'outil, et cdnjs (Cloudflare), qui fournit la bibliothèque de carte Leaflet.</p>
   </main>
 </body>
 </html>

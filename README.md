@@ -2,7 +2,7 @@
 
 Un premier repérage, gratuit et sans inscription, des risques climatiques physiques auxquels les sites
 d'une PME européenne sont ou seront exposés : chaleur, froid, pluies extrêmes, sécheresse, vent et feux,
-aujourd'hui et à +1,5 °C, +2 °C et +3 °C de réchauffement mondial (vers 2030, 2050 et 2100).
+sur la référence 1991–2020 et à +1,5 °C, +2 °C et +3 °C de réchauffement mondial (vers 2030, 2050 et 2100).
 
 **👉 Essayer l'outil : https://niz95.github.io/radar-climat-pme/**
 
@@ -18,14 +18,15 @@ aujourd'hui et à +1,5 °C, +2 °C et +3 °C de réchauffement mondial (vers 203
    - **Annexe**, pour une banque, un assureur ou un auditeur : valeurs, fourchettes entre modèles, sources
      des seuils, export CSV.
 
-![Détail : comparaison des sites et fiches par aléa](docs/apercu-detail.jpg)
+![Détail : évolution dans le temps et comparaison des sites](docs/apercu-detail.jpg)
 
 ## Méthode
 
 - **Données** : Copernicus Climate Change Service, jeu « Aggregated climate indicators for Europe »
   (`sis-ecde-aggregated-climate-indicators` v2.0, CC-BY 4.0) : moyenne multi-modèles et fourchette
-  17–83 % entre modèles, par région NUTS 2 (environ 340 régions, découpage 2024). Le climat actuel
-  (1991–2020) est recalculé comme la valeur à un niveau de réchauffement moins l'écart à ce niveau.
+  17–83 % entre modèles, par région NUTS 2 (environ 340 régions, découpage 2024). La référence
+  1991–2020 est recalculée comme la valeur à un niveau de réchauffement moins l'écart à ce niveau, à 1 ou
+  2 jours près ; le climat de l'année en cours est déjà plus chaud que cette référence.
 - **Cadre** : phase de « screening » du guide de la Commission européenne sur le climate proofing des
   infrastructures (C(2021) 5430) : l'exposition et la sensibilité, notées sur 3 niveaux (Faible, Moyen,
   Élevé), sont croisées dans une matrice 3 × 3. Ni ce guide ni la méthode OCARA (Carbone 4 / ADEME) ne
@@ -35,9 +36,10 @@ aujourd'hui et à +1,5 °C, +2 °C et +3 °C de réchauffement mondial (vers 203
   - des seuils absolus, conventions du prototype (par exemple, jours au-dessus de 30 °C : 5 et 20 par an) ;
   - pour les pluies, la position par rapport aux régions européennes (75ᵉ et 90ᵉ percentiles) ;
   - pour les indices définis localement (vagues de chaleur, durée des sécheresses, vents extrêmes),
-    l'évolution par rapport au climat actuel.
+    l'évolution par rapport à la référence. Le vent n'a que cet indicateur : sans hausse, il est noté
+    « Stable », car le niveau de risque de tempête actuel n'est pas mesuré.
 - **Tendance** : ↑ ou ↑↑ quand un indicateur au moins Moyen augmente de 25 % ou 50 % par rapport à
-  aujourd'hui, affichée seulement sur un risque Moyen ou Élevé.
+  la référence, affichée seulement sur un risque Moyen ou Élevé.
 - **Sensibilité** : une note par secteur, relevée d'un niveau par réponse « oui » au questionnaire, dont les
   questions suivent les 4 thèmes du guide européen. Ces notes sont des hypothèses, à valider avec des PME.
 
@@ -46,6 +48,8 @@ aujourd'hui et à +1,5 °C, +2 °C et +3 °C de réchauffement mondial (vers 203
 - Les valeurs sont des moyennes sur de grandes régions (NUTS 2) : elles ne décrivent pas un bâtiment, en
   particulier pour les inondations. Consultez les cartes officielles des zones inondables de votre pays.
 - Ce sont des projections de modèles climatiques, pas des prévisions.
+- Un site hors des contours simplifiés (littoral, île, pays voisin non couvert) est rattaché à la région
+  la plus proche, jusqu'à 30 km. Les régions d'outre-mer et certaines îles éloignées n'ont pas de données.
 - Pas encore de crues de rivières, de submersion marine, de grêle ni de mouvements de terrain.
 - L'outil est informatif : ni conseil professionnel, ni notation, ni attestation de conformité. Voir
   [les mentions et limites complètes](web/mentions.html).

@@ -3,8 +3,10 @@
 // Les seuils marqués « convention » et les sensibilités sectorielles sont des hypothèses du
 // prototype, pas des valeurs réglementaires.
 
+// Le premier horizon est la référence 1991–2020 (moyenne des modèles sur cette période), pas le
+// climat de l'année en cours, déjà plus chaud.
 export const GWLS = [
-  { id: "0", label: "Climat actuel", horizon: "1991–2020", year: "aujourd'hui" },
+  { id: "0", label: "Référence 1991–2020", horizon: "1991–2020", year: "1991–2020" },
   { id: "1.5", label: "+1,5 °C", horizon: "vers 2030", year: "2030" },
   { id: "2", label: "+2 °C", horizon: "vers 2050", year: "2050" },
   { id: "3", label: "+3 °C", horizon: "vers 2100", year: "2100" },
@@ -54,8 +56,11 @@ export const HAZARDS = {
   },
   wind: {
     label: "Tempêtes et vents violents",
-    help: "Jours de vent exceptionnellement fort pour la région : toitures, structures légères, coupures de réseaux.",
+    help: "Jours de vent exceptionnellement fort pour la région : toitures, structures légères, coupures de réseaux. Les données mesurent seulement si ces jours deviennent plus fréquents, pas le niveau de risque de tempête actuel.",
     icon: "💨",
+    // Seul indicateur disponible : un indice défini par rapport au climat local. Sans hausse,
+    // l'aléa est affiché « Stable » et non « Faible », qui laisserait croire à une absence de risque.
+    changeOnly: true,
     adaptation: [
       "Contrôler toitures, bardages, enseignes et structures légères",
       "Sécuriser les zones de stockage extérieures",
@@ -280,7 +285,7 @@ export const MATRIX = [
 ];
 
 // Signal de tendance : hausse d'au moins 25 % (↑) ou 50 % (↑↑) d'un indicateur par rapport
-// au climat actuel, comptée seulement pour un indicateur qui atteint au moins Moyen, et
+// à la référence 1991–2020, comptée seulement pour un indicateur qui atteint au moins Moyen, et
 // affichée seulement quand le risque de l'aléa est au moins Moyen.
 export const TREND_PCT = [25, 50];
 
@@ -307,7 +312,7 @@ export function indicatorLevel(ind, values, i, meta) {
   return null;
 }
 
-// Variation en % par rapport au climat actuel (null si elle n'a pas de sens).
+// Variation en % par rapport à la référence 1991–2020 (null si elle n'a pas de sens).
 export function changePct(values, i) {
   const base = values[0];
   if (i === 0 || base == null || values[i] == null || base <= 0) return null;
@@ -351,7 +356,8 @@ export function assessSite(regionData, meta, sectorId, answers = {}) {
     });
     const rising = GWLS.map((_, i) => Math.max(0, ...scored.map((ind) => ind.trends[i])));
     const sensitivity = sensitivityFor(sectorId, hazardId, answers);
-    const risk = exposure.map((e) => (e ? MATRIX[e.level][sensitivity.level] : null));
+    const stable = exposure.map((e) => Boolean(hazard.changeOnly && e && e.level === 0));
+    const risk = exposure.map((e, i) => (e && !stable[i] ? MATRIX[e.level][sensitivity.level] : null));
     // Pas de flèche sur un risque Faible : elle brouille la lecture pour le dirigeant.
     const trend = rising.map((t, i) => (risk[i] >= 1 ? t : 0));
     // Indicateur qui porte la flèche, parmi ceux qui la déclenchent : de préférence celui qui
@@ -370,6 +376,6 @@ export function assessSite(regionData, meta, sectorId, answers = {}) {
       return { ind: candidates[0], pct: changePct(candidates[0].values, i) };
     });
     const impact = SECTORS[sectorId][hazardId][1];
-    return { id: hazardId, ...hazard, indicators, exposure, trend, trendBy, sensitivity, risk, impact };
+    return { id: hazardId, ...hazard, indicators, exposure, stable, trend, trendBy, sensitivity, risk, impact };
   });
 }

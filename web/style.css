@@ -76,6 +76,9 @@ button.ghost { background: transparent; color: var(--accent); border: 1px solid 
 }
 .results li button:hover, .sites li button:hover { background: var(--bg); }
 .sites li button.active { background: var(--bg); outline: 1px solid var(--accent); }
+.sites li { display: flex; gap: 4px; align-items: center; }
+.sites li button.remove { width: auto; flex: none; padding: 4px 10px; color: var(--muted); font-size: 1.1rem; line-height: 1; }
+#to-report { align-self: flex-start; margin-top: 8px; }
 
 .segmented { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 .segmented button {
@@ -86,7 +89,6 @@ button.ghost { background: transparent; color: var(--accent); border: 1px solid 
 .segmented button[aria-checked="true"] { border-color: var(--accent); outline: 1px solid var(--accent); }
 
 .report { margin-top: 20px; }
-.report-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 
 .matrix-wrap { overflow-x: auto; }
 .matrix { width: 100%; border-collapse: separate; border-spacing: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; }
@@ -106,16 +108,12 @@ button.ghost { background: transparent; color: var(--accent); border: 1px solid 
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; margin-top: 16px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
-.facts { display: flex; gap: 16px; font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
 .impact { margin: 0 0 10px; }
 .ind { width: 100%; border-collapse: collapse; font-size: .85rem; margin-bottom: 10px; }
 .ind th, .ind td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--border); }
 .ind th:first-child, .ind td:first-child { text-align: left; }
 .ind th { color: var(--muted); font-weight: 600; }
-.up { color: var(--l3-text); }
-.down { color: var(--l0-text); }
 .card ul { margin: 4px 0 0; padding-left: 18px; font-size: .9rem; }
-.card details summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 
 .foot { color: var(--muted); font-size: .8rem; margin-top: 28px; padding-bottom: 32px; }
 
@@ -130,7 +128,6 @@ button.ghost { background: transparent; color: var(--accent); border: 1px solid 
   .layout, #print { display: none; }
   body { background: #fff; }
   .card, .matrix { break-inside: avoid; }
-  .card details { display: block; }
 }
 
 /* Questionnaire */
@@ -202,3 +199,8 @@ code { font-size: .8rem; }
 .legal h2 { font-size: 1.1rem; margin: 24px 0 6px; }
 .legal li { margin-bottom: 6px; }
 .legal a { color: var(--accent); }
+
+/* À l'impression, les couleurs des notes portent l'information : on demande à les conserver. */
+@media print {
+  .lvl, .risk-top, .tag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

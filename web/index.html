@@ -3,9 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Climat PME Risques</title>
+  <title>Radar climat PME</title>
+  <meta name="description" content="Outil gratuit et sans inscription : repérez en 3 minutes les risques climatiques physiques de vos sites (chaleur, pluies extrêmes, sécheresse, feux), sur la référence 1991–2020 et vers 2030, 2050 et 2100.">
+  <!-- Aperçu du lien sur LinkedIn et les messageries. -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:url" content="https://niz95.github.io/radar-climat-pme/">
+  <meta property="og:title" content="Radar climat PME : les risques climatiques physiques de vos sites">
+  <meta property="og:description" content="Outil gratuit et sans inscription, à partir des données Copernicus : chaleur, pluies extrêmes, sécheresse, feux, vers 2030, 2050 et 2100.">
+  <meta property="og:image" content="https://niz95.github.io/radar-climat-pme/apercu.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌡️%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <header class="top">
@@ -39,17 +49,18 @@
 
       <span class="label">Horizon (niveau de réchauffement mondial)</span>
       <div id="gwl" class="segmented" role="radiogroup"></div>
-      <p class="hint">Les années sont indicatives : elles correspondent au moment où le réchauffement mondial atteindrait ce niveau selon la trajectoire européenne de référence.</p>
+      <p class="hint">La référence est la moyenne 1991–2020 : le climat d'aujourd'hui est déjà plus chaud. Les années sont indicatives : elles correspondent au moment où le réchauffement mondial atteindrait ce niveau selon la trajectoire européenne de référence.</p>
 
       <div id="sites-block" hidden>
         <span class="label">Sites analysés</span>
         <ul id="sites" class="sites"></ul>
-        <p class="hint">Cliquez sur un site pour afficher son rapport. Sur la carte, la zone colorée est la région dont les données sont utilisées.</p>
+        <button id="to-report" type="button">Voir le rapport ↓</button>
+        <p class="hint">Cliquez sur un site pour afficher son rapport, sur × pour le retirer. Sur la carte, la zone colorée est la région dont les données sont utilisées.</p>
       </div>
     </section>
 
     <section class="panel quiz">
-      <details open>
+      <details id="quiz" open>
         <summary>Votre entreprise <span class="muted">· 8 questions, communes à tous les sites</span></summary>
         <p class="hint">Chaque « oui » augmente d'un cran la sensibilité aux aléas indiqués sous la question. En cas de doute, laissez décoché.</p>
         <div id="questions" class="questions"></div>
@@ -76,6 +87,6 @@
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script type="module" src="app.js?v=11"></script>
+  <script type="module" src="app.js?v=13"></script>
 </body>
 </html>
