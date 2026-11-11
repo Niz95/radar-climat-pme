@@ -1,4 +1,4 @@
-# Risques climatiques physiques pour PME
+# Radar climat PME
 
 Un premier repérage, gratuit et sans inscription, des risques climatiques physiques auxquels les sites
 d'une PME européenne sont ou seront exposés : chaleur, froid, pluies extrêmes, sécheresse, vent et feux,

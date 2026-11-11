@@ -235,8 +235,23 @@ function removeSite(id) {
 
 const showReport = () => $("#report").scrollIntoView({ block: "start" });
 
+// Exemple en un clic, pour le visiteur qui découvre l'outil : une entreprise de BTP fictive à Montpellier.
+const EXAMPLE = {
+  lat: 43.6108,
+  lon: 3.8767,
+  sector: "construction",
+  names: { tip: "Montpellier (exemple)", short: "Montpellier (exemple)", title: "Montpellier, Hérault, Occitanie (exemple)" },
+};
+
+function showExample() {
+  state.sector = EXAMPLE.sector;
+  addSite(EXAMPLE.lat, EXAMPLE.lon, EXAMPLE.names);
+}
+
 function renderSites() {
   $("#sites-block").hidden = state.sites.length === 0;
+  // L'exemple sert à découvrir l'outil : il s'efface dès qu'un site est affiché.
+  $("#example-block").hidden = state.sites.length > 0;
   const list = $("#sites");
   list.innerHTML = "";
   for (const site of state.sites) {
@@ -775,12 +790,18 @@ function exportCsv() {
   const csv = lines.map((row) => row.map(csvCell).join(";")).join("\r\n");
   // Marque d'ordre d'octets en tête : sans elle, Excel lit mal les accents.
   const url = URL.createObjectURL(new Blob([String.fromCharCode(0xfeff) + csv], { type: "text/csv;charset=utf-8" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: "risques-climatiques.csv" });
+  const a = Object.assign(document.createElement("a"), { href: url, download: "radar-climat-pme.csv" });
   a.click();
   URL.revokeObjectURL(url);
 }
 
 // --- Rapport -----------------------------------------------------------------
+
+// Sous le rapport : c'est en lisant ses propres résultats qu'un visiteur repère une note absurde.
+const FEEDBACK = `<p class="feedback">Un résultat vous surprend, ou une question est mal posée ?
+  <a href="mentions.html#contact">Écrivez à l'auteur</a> ou
+  <a href="https://github.com/Niz95/radar-climat-pme/issues/new" target="_blank" rel="noopener">ouvrez un ticket sur GitHub</a>.
+  Chaque retour sert à corriger l'outil.</p>`;
 
 function renderReport() {
   const report = $("#report");
@@ -824,7 +845,7 @@ function renderReport() {
   }
   const g = state.gwl;
   renderEffects(site, hazards);
-  report.innerHTML = synthesis(site, hazards, g) + detail(site, hazards, g) + annex(site, hazards);
+  report.innerHTML = synthesis(site, hazards, g) + detail(site, hazards, g) + annex(site, hazards) + FEEDBACK;
   $("#csv").onclick = exportCsv;
 }
 
@@ -854,6 +875,8 @@ async function init() {
   state.nuts = nuts;
   state.grid = grid;
   $("#demo-banner").hidden = !data.meta.demo;
+  $("#example").onclick = showExample;
+  $("#example").disabled = false;
   render();
 }
 

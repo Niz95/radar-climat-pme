@@ -203,7 +203,11 @@ code { font-size: .8rem; }
 
 /* Mentions et limites */
 .sub.small { font-size: .8rem; }
-.sub a, .foot a { color: var(--accent); }
+.sub a, .foot a, .feedback a { color: var(--accent); }
+.feedback { text-align: center; color: var(--muted); font-size: .9rem; margin: 4px 0 0; }
+#example-block { margin-top: 8px; }
+#example-block[hidden] { display: none; }
+@media print { .feedback { display: none; } }
 .legal { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
 .legal h1 { font-size: 1.5rem; margin: 8px 0 16px; }
 .legal h2 { font-size: 1.1rem; margin: 24px 0 6px; }

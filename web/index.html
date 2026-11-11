@@ -11,18 +11,21 @@
   <meta property="og:url" content="https://niz95.github.io/radar-climat-pme/">
   <meta property="og:title" content="Radar climat PME : les risques climatiques physiques de vos sites">
   <meta property="og:description" content="Outil gratuit et sans inscription, à partir des données Copernicus : chaleur, pluies extrêmes, sécheresse, feux, vers 2030, 2050 et 2100.">
-  <meta property="og:image" content="https://niz95.github.io/radar-climat-pme/apercu.jpg">
+  <meta property="og:image" content="https://niz95.github.io/radar-climat-pme/apercu-lien.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="627">
+  <meta property="og:image:alt" content="Radar climat PME : exemple de notes pour une entreprise de BTP à Montpellier, à l'horizon 2050">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌡️%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <header class="top">
     <div>
-      <h1>Risques climatiques physiques</h1>
-      <p class="sub">Premier repérage pour PME européennes, à partir des données du Copernicus Climate Change Service</p>
-      <p class="sub small">Outil gratuit et indépendant, non affilié à Copernicus, à l'ECMWF ni à la Commission européenne · <a href="mentions.html">Mentions et limites</a></p>
+      <h1>Radar climat PME</h1>
+      <p class="sub">Les risques climatiques physiques de vos sites : un premier repérage pour PME européennes, à partir des données du Copernicus Climate Change Service</p>
+      <p class="sub small">Outil gratuit et indépendant, non affilié à Copernicus, à l'ECMWF ni à la Commission européenne · <a href="mentions.html">Mentions et limites</a> · <a href="mentions.html#contact">Donner un avis</a></p>
     </div>
     <button id="print" class="ghost" type="button">Imprimer / PDF</button>
   </header>
@@ -41,6 +44,10 @@
         </div>
         <ul id="results" class="results"></ul>
         <p class="hint">Ou cliquez directement sur la carte. L'adresse est envoyée au service de recherche d'OpenStreetMap ; l'outil n'enregistre rien.</p>
+        <div id="example-block">
+          <button id="example" class="ghost" type="button" disabled>Voir un exemple</button>
+          <p class="hint">Une entreprise de BTP fictive à Montpellier : le rapport s'affiche en un clic.</p>
+        </div>
       </form>
 
       <label for="sector">Secteur d'activité</label>
@@ -93,6 +100,6 @@
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script type="module" src="app.js?v=20"></script>
+  <script type="module" src="app.js?v=21"></script>
 </body>
 </html>

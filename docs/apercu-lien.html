@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- Source de web/apercu-lien.png, l'image affichée quand le lien est partagé (LinkedIn, messageries).
+     Format 1200 × 627. Les notes sont celles de l'exemple de l'outil : BTP à Montpellier, horizon 2050.
+     Pour la regénérer :
+     msedge --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,627
+            --screenshot=web\apercu-lien.png docs\apercu-lien.html -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Radar climat PME : image d'aperçu du lien</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 627px; overflow: hidden; }
+  body {
+    display: grid; grid-template-columns: 1fr 500px; gap: 48px; align-items: center;
+    padding: 56px 64px; background: #f6f7f5; color: #1c2321;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  .tag {
+    display: inline-block; padding: 8px 18px; border-radius: 999px; background: #1f6f5c; color: #fff;
+    font-size: 24px; font-weight: 600;
+  }
+  h1 { font-size: 84px; line-height: 1.02; font-weight: 700; letter-spacing: -1.5px; margin: 26px 0 22px; }
+  .lead { font-size: 35px; line-height: 1.28; color: #33403c; }
+  .src { font-size: 23px; color: #5d6865; margin-top: 30px; }
+  .card { background: #fff; border: 1px solid #dde2df; border-radius: 22px; padding: 26px 28px 20px; box-shadow: 0 6px 24px rgba(28, 35, 33, .07); }
+  .card-head { font-size: 23px; color: #5d6865; margin-bottom: 16px; }
+  .card-head strong { color: #1c2321; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-top: 1px solid #e7ebe9; font-size: 31px; font-weight: 600; }
+  .lvl { flex: none; padding: 6px 20px; border-radius: 999px; font-size: 27px; font-weight: 700; }
+  .l0 { background: #d9efe3; color: #1d5a3c; }
+  .l1 { background: #fbefc4; color: #6b5300; }
+  .l2 { background: #f4b5b0; color: #8c1d18; }
+</style>
+</head>
+<body>
+  <div>
+    <span class="tag">Gratuit · sans inscription</span>
+    <h1>Radar climat PME</h1>
+    <p class="lead">Les risques climatiques de vos sites, vers 2030, 2050 et 2100</p>
+    <p class="src">Données Copernicus · outil indépendant</p>
+  </div>
+  <div class="card">
+    <p class="card-head"><strong>Exemple</strong> · BTP à Montpellier, en 2050</p>
+    <div class="row"><span>🌡️ Chaleur extrême</span><span class="lvl l2">Élevé ↑↑</span></div>
+    <div class="row"><span>🌧️ Pluies extrêmes</span><span class="lvl l2">Élevé</span></div>
+    <div class="row"><span>🔥 Feux de forêt</span><span class="lvl l1">Moyen</span></div>
+    <div class="row"><span>🏜️ Sécheresse</span><span class="lvl l0">Faible</span></div>
+  </div>
+</body>
+</html>
