@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mentions et limites</title>
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <main class="legal">
@@ -21,11 +21,17 @@
     <h2>Données et licences</h2>
     <ul>
       <li><strong>Indicateurs climatiques.</strong> Contient des informations modifiées du Copernicus Climate Change
-        Service (2026) : jeu « Aggregated climate indicators for Europe from 1940 to 2100 derived from reanalysis and
-        multi-model climate projections » (<code>sis-ecde-aggregated-climate-indicators</code>, version 2.0), licence
-        CC-BY 4.0, téléchargé le 3 novembre 2026. Les valeurs ont été transformées (climat actuel recalculé, notation
-        en niveaux de risque). Ni la Commission européenne ni l'ECMWF ne sont responsables de l'usage qui peut être fait
-        des informations Copernicus ou des données qu'elles contiennent.</li>
+        Service (2026) : jeu « Climate indicators for Europe from 1940 to 2100 derived from reanalysis and climate
+        projections » (<code>sis-ecde-climate-indicators</code>, version 2.0), licence CC-BY 4.0, téléchargé le
+        10 novembre 2026 : séries annuelles par modèle sur une grille de 0,25°. Les valeurs ont été transformées :
+        moyennes par niveau de réchauffement recalculées, moyenne et fourchette entre simulations, notation en niveaux
+        d'attention. À défaut de maille (outre-mer, îles éloignées), l'outil utilise les moyennes régionales du jeu
+        « Aggregated climate indicators for Europe » (<code>sis-ecde-aggregated-climate-indicators</code>, version 2.0,
+        CC-BY 4.0, téléchargé le 3 novembre 2026). Le masque terre-mer vient de la réanalyse ERA5 (licence Copernicus).
+        Ni la Commission européenne ni l'ECMWF ne sont responsables de l'usage qui peut être fait des informations
+        Copernicus ou des données qu'elles contiennent.</li>
+      <li><strong>Années des niveaux de réchauffement.</strong> Table de l'Atlas interactif du GIEC (dépôt
+        <code>IPCC-WG1/Atlas</code>, licence CC-BY 4.0) : année où chaque modèle global atteint +1,5 °C, +2 °C et +3 °C.</li>
       <li><strong>Limites des régions.</strong> © EuroGeographics pour les limites administratives (GISCO, Eurostat,
         découpage NUTS 2024 et régions britanniques 2021), utilisées sans but commercial.</li>
       <li><strong>Fond de carte et recherche d'adresse.</strong> © contributeurs OpenStreetMap, données sous licence
@@ -37,17 +43,29 @@
 
     <h2>Ce que l'outil fait, et ce qu'il ne fait pas</h2>
     <ul>
-      <li>Il réalise un premier repérage (« screening ») : il croise l'exposition de la région au climat et une
+      <li>Il réalise un premier repérage (« screening ») : il croise l'exposition du lieu au climat et une
         sensibilité estimée de l'activité. Ce n'est pas une étude de vulnérabilité du site.</li>
-      <li>Les valeurs sont des moyennes sur de grandes régions (NUTS 2, par exemple une région française). Elles ne
-        décrivent pas la situation d'un bâtiment précis, en particulier pour les inondations : consultez les cartes
-        officielles des zones inondables de votre pays.</li>
+      <li>Les valeurs sont des moyennes sur une maille d'environ 25 km de côté autour du site. Elles ne décrivent pas
+        la situation d'un bâtiment précis, en particulier pour les inondations : consultez les cartes officielles des
+        zones inondables de votre pays.</li>
+      <li>L'outil lit la maille du site plutôt que la moyenne de sa région, car l'écart au sein d'une région est grand :
+        en Provence-Alpes-Côte d'Azur, de presque aucun jour par an au-dessus de 30 °C à Briançon à une cinquantaine à
+        Avignon. Les mailles surtout marines, au climat de mer, sont écartées : un site côtier prend la maille terrestre
+        la plus proche, jusqu'à 40 km.</li>
+      <li>Une maille reste trop grande pour une bande côtière étroite ou une vallée de montagne. Quand les mailles
+        voisines donneraient un niveau différent, le rapport l'indique (« contraste local ») : la note est alors à lire
+        avec prudence.</li>
+      <li>Les notes sont des niveaux d'attention. Elles décrivent les tendances de fond du climat, en année moyenne, pas
+        la probabilité d'un événement exceptionnel. Confrontées à des catastrophes passées, elles ne les anticipent pas
+        toujours : Altenahr (crue de l'Ahr, 2021) et la vallée de l'Aa (crues du Pas-de-Calais, 2023-24) sont notées
+        « Faible » pour les pluies extrêmes. Un niveau « Faible » ne signifie pas une absence de risque.</li>
       <li>Les sensibilités par secteur et plusieurs seuils sont des hypothèses du prototype, signalées comme
         « convention du prototype » dans l'annexe du rapport.</li>
       <li>Pour le vent, les données mesurent seulement si les jours de vent extrême deviennent plus fréquents, pas le
         niveau de risque de tempête actuel : l'aléa est noté « Stable » quand il n'augmente pas.</li>
-      <li>Un site hors des contours simplifiés des régions (littoral, île, pays voisin non couvert) est rattaché à la
-        région la plus proche, jusqu'à 30 km. Les régions d'outre-mer et certaines îles éloignées n'ont pas de données.</li>
+      <li>La région sert à nommer le lieu : un site hors des contours simplifiés (littoral, île, pays voisin non
+        couvert) est rattaché à la région la plus proche, jusqu'à 30 km. Les régions d'outre-mer et certaines îles
+        éloignées n'ont pas de données.</li>
       <li>Les crues de rivières, la submersion marine, la grêle et les mouvements de terrain ne sont pas encore couverts.</li>
     </ul>
 
@@ -55,10 +73,15 @@
     <p>Les valeurs futures sont des projections issues de modèles climatiques, pas des prévisions. Elles décrivent le
       climat moyen attendu à un niveau de réchauffement mondial donné (+1,5 °C, +2 °C, +3 °C). Les années associées
       (2030, 2050, 2100) sont indicatives et suivent la trajectoire de référence européenne. La fourchette affichée
-      sous les valeurs indique l'écart entre modèles : 2 modèles sur 3 se situent dans cet intervalle.</p>
-    <p>La référence est la moyenne 1991–2020, reconstituée à partir des projections à 1 ou 2 jours près. Le climat
-      de l'année en cours est déjà plus chaud que cette référence. L'ensemble de modèles n'est pas exactement le même
-      d'un niveau de réchauffement à l'autre : de petits allers-retours entre deux horizons sont possibles.</p>
+      sous les valeurs indique l'écart entre simulations : 2 sur 3 se situent dans cet intervalle.</p>
+    <p>L'ensemble compte 18 simulations : 9 couples de modèles EURO-CORDEX, corrigés de leurs biais, sous deux
+      scénarios d'émissions (RCP4.5 et RCP8.5) ; 10 pour le danger d'incendie. Pour chacune, la valeur à un niveau de
+      réchauffement est la moyenne des 20 ans centrés sur l'année où son modèle global atteint ce niveau (méthode de
+      l'Atlas du GIEC). À +3 °C, 12 simulations seulement atteignent le niveau avant 2100 : cet horizon est moins
+      robuste. Pour un modèle (EC-EARTH, membre r1), absent de la table du GIEC, les années d'un membre voisin sont
+      utilisées ; l'écart est d'un an au plus.</p>
+    <p>La référence est la moyenne 1991–2020 des mêmes simulations. Le climat de l'année en cours est déjà plus chaud
+      que cette référence.</p>
 
     <h2>Absence de garantie</h2>
     <p>L'outil est fourni en l'état, à titre d'information, sans garantie d'exactitude ni d'exhaustivité. Il ne

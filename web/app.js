@@ -1,18 +1,24 @@
-import { GWLS, HAZARDS, LEVELS, MATRIX, QUESTIONS, SECTORS, TREND_PCT, assessSite } from "./risk-model.js?v=12";
+import { GWLS, HAZARDS, LEVELS, MATRIX, QUESTIONS, SECTORS, TREND_PCT, assessSite, indicatorLevel, sectorSensitivity } from "./risk-model.js?v=20";
 
 const state = {
-  data: null, // data/indicators.json
+  data: null, // data/indicators.json : moyennes régionales, utilisées à défaut de maille
+  grid: null, // data/grid/index.json : description de la grille de 0,25°
   nuts: null, // data/nuts2.geojson
   sector: "manufacturing",
   gwl: 2, // index dans GWLS
-  answers: {}, // id de question -> booléen, communs à tous les sites
-  sites: [], // { id, lat, lon, tip, short, title, region, nearKm, marker }
+  // Réponses : true (oui), false (non), absente (ne sait pas). Ici celles qui décrivent l'entreprise ;
+  // celles qui décrivent un lieu sont rangées dans chaque site.
+  answers: {},
+  sites: [], // { id, lat, lon, tip, short, title, region, nearKm, cell, marker, answers }
   active: null,
 };
 
 const REF = GWLS[0].year; // période de référence, « 1991–2020 »
 // Au-delà de cette distance d'un contour, un point n'est rattaché à aucune région.
 const NEAR_KM = 30;
+// Maille terrestre la plus proche : cherchée à 2 mailles autour du point, retenue jusqu'à 40 km.
+const CELL_REACH = 2;
+const CELL_MAX_KM = 40;
 
 const $ = (sel) => document.querySelector(sel);
 const fmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
@@ -28,7 +34,8 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 18,
   attribution: "© contributeurs OpenStreetMap",
 }).addTo(map);
-const regionLayer = L.geoJSON(null, { style: { color: "#1f6f5c", weight: 2, fillOpacity: 0.12 } }).addTo(map);
+const regionLayer = L.geoJSON(null, { style: { color: "#1f6f5c", weight: 1, dashArray: "4 4", fillOpacity: 0.04 } }).addTo(map);
+const cellLayer = L.layerGroup().addTo(map);
 const markers = L.layerGroup().addTo(map);
 
 map.on("click", (e) => addSite(e.latlng.lat, e.latlng.lng, pointNames(e.latlng.lat, e.latlng.lng)));
@@ -87,6 +94,66 @@ function findRegion(lat, lon) {
   return best;
 }
 
+// --- Maille de la grille de 0,25° autour du site -----------------------------
+
+const tileCache = new Map();
+
+function loadTile(id) {
+  if (!state.grid.tiles.includes(id)) return Promise.resolve({});
+  if (!tileCache.has(id)) {
+    tileCache.set(
+      id,
+      fetch(`data/grid/${id}.json`)
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})),
+    );
+  }
+  return tileCache.get(id);
+}
+
+// Une maille stocke, par indicateur : 4 valeurs (référence et 3 horizons), puis bornes basses et hautes.
+function cellData(cell) {
+  const data = {};
+  state.grid.indicators.forEach((name, k) => {
+    const a = cell[k];
+    if (a) data[name] = { v: a.slice(0, 4), lo: [null, ...a.slice(4, 7)], hi: [null, ...a.slice(7, 10)] };
+  });
+  return data;
+}
+
+// La grille couvre aussi la mer, où le climat est plus tempéré : les tuiles ne gardent que les mailles
+// terrestres, et un site côtier prend la plus proche.
+async function findCell(lat, lon) {
+  const g = state.grid;
+  if (!g) return null;
+  const i0 = Math.round((lat - g.lat0) / g.step);
+  const j0 = Math.round((lon - g.lon0) / g.step);
+  const around = [];
+  for (let i = i0 - CELL_REACH; i <= i0 + CELL_REACH; i++) for (let j = j0 - CELL_REACH; j <= j0 + CELL_REACH; j++) if (i >= 0 && j >= 0) around.push([i, j]);
+  const ids = [...new Set(around.map(([i, j]) => `${Math.floor(i / g.tile)}_${Math.floor(j / g.tile)}`))];
+  const cells = Object.assign({}, ...(await Promise.all(ids.map(loadTile))));
+  let best = null;
+  const near = {}; // par indicateur : minimum et maximum des mailles terrestres à portée, à chaque horizon
+  for (const [i, j] of around) {
+    const cell = cells[`${i}_${j}`];
+    if (!cell) continue;
+    const clat = g.lat0 + i * g.step;
+    const clon = g.lon0 + j * g.step;
+    const km = Math.hypot((clat - lat) * 110.57, (clon - lon) * 111.32 * Math.cos((lat * Math.PI) / 180));
+    if (km > CELL_MAX_KM) continue;
+    const data = cellData(cell);
+    for (const [name, { v }] of Object.entries(data)) {
+      near[name] ??= { min: [...v], max: [...v] };
+      v.forEach((x, k) => {
+        near[name].min[k] = Math.min(near[name].min[k], x);
+        near[name].max[k] = Math.max(near[name].max[k], x);
+      });
+    }
+    if (!best || km < best.km) best = { lat: clat, lon: clon, km, data };
+  }
+  return best && { ...best, near };
+}
+
 // --- Géocodage (Nominatim) --------------------------------------------------
 
 async function geocode(query) {
@@ -137,11 +204,12 @@ function pointNames(lat, lon) {
 
 let siteSeq = 0;
 
-function addSite(lat, lon, names) {
+async function addSite(lat, lon, names) {
   // Un élément plutôt qu'une chaîne : Leaflet interpréterait une chaîne comme du HTML.
   const tip = Object.assign(document.createElement("span"), { textContent: names.tip });
   const marker = L.marker([lat, lon]).addTo(markers).bindTooltip(tip);
-  const site = { id: ++siteSeq, lat, lon, ...names, ...findRegion(lat, lon), marker };
+  const cell = await findCell(lat, lon);
+  const site = { id: ++siteSeq, lat, lon, ...names, ...findRegion(lat, lon), cell, marker, answers: {} };
   state.sites.push(site);
   selectSite(site.id);
 }
@@ -158,7 +226,10 @@ function removeSite(id) {
   markers.removeLayer(site.marker);
   state.sites = state.sites.filter((s) => s.id !== id);
   if (state.active === id) state.active = state.sites.at(-1)?.id ?? null;
-  if (!state.sites.length) regionLayer.clearLayers();
+  if (!state.sites.length) {
+    regionLayer.clearLayers();
+    cellLayer.clearLayers();
+  }
   render();
 }
 
@@ -215,25 +286,109 @@ function renderControls() {
     seg.append(btn);
   });
 
-  const box = $("#questions");
-  const themes = [...new Set(QUESTIONS.map((q) => q.theme))];
-  box.innerHTML = themes
+  renderQuestions();
+}
+
+// --- Questionnaire ----------------------------------------------------------
+
+const COMPANY_QUESTIONS = QUESTIONS.filter((q) => q.scope !== "site");
+const SITE_QUESTIONS = QUESTIONS.filter((q) => q.scope === "site");
+const CHOICES = [["oui", "Oui", true], ["non", "Non", false], ["", "Ne sait pas", undefined]];
+
+const activeSite = () => state.sites.find((s) => s.id === state.active);
+// Réponses qui s'appliquent à un site : celles de l'entreprise, plus les siennes.
+const answersFor = (site) => ({ ...state.answers, ...site?.answers });
+
+// Trois réponses par question : un « non » se distingue d'une question laissée sans réponse.
+function questionsHtml(questions, answers, group) {
+  const themes = [...new Set(questions.map((q) => q.theme))];
+  return themes
     .map(
-      (theme) => `<fieldset><legend>${esc(theme)}</legend>${QUESTIONS.filter((q) => q.theme === theme)
+      (theme) => `<fieldset><legend>${esc(theme)}</legend>${questions
+        .filter((q) => q.theme === theme)
         .map(
-          (q) => `<label class="check"><input type="checkbox" data-q="${q.id}" ${state.answers[q.id] ? "checked" : ""}>
-            <span>${esc(q.text)}<small class="q-effect">${
-              q.hazards.length ? "Augmente la sensibilité : " + q.hazards.map(hazardName).join(", ") : "Signalé dans la synthèse, sans modifier les notes"
-            }</small></span></label>`,
+          (q) => `<div class="q" data-q="${q.id}">
+            <p class="q-text" id="qt-${group}-${q.id}">${esc(q.text)}</p>
+            <div class="q-choice" role="radiogroup" aria-labelledby="qt-${group}-${q.id}">${CHOICES.map(
+              ([value, label, stored]) =>
+                `<label><input type="radio" name="q-${group}-${q.id}" value="${value}" ${answers[q.id] === stored ? "checked" : ""}><span>${label}</span></label>`,
+            ).join("")}</div>
+            <small class="q-effect"></small>
+          </div>`,
         )
         .join("")}</fieldset>`,
     )
     .join("");
-  box.querySelectorAll("input[data-q]").forEach((input) => {
-    input.onchange = () => {
-      state.answers[input.dataset.q] = input.checked;
-      renderReport();
-    };
+}
+
+function bindQuestions(box, answers) {
+  box.querySelectorAll(".q").forEach((block) => {
+    block.querySelectorAll("input").forEach((input) => {
+      input.onchange = () => {
+        if (input.value) answers[block.dataset.q] = input.value === "oui";
+        else delete answers[block.dataset.q];
+        renderReport();
+      };
+    });
+  });
+}
+
+function renderQuestions() {
+  const box = $("#questions");
+  box.innerHTML = questionsHtml(COMPANY_QUESTIONS, state.answers, "co");
+  bindQuestions(box, state.answers);
+
+  const site = activeSite();
+  $("#site-quiz").hidden = !site;
+  $("#site-quiz-empty").hidden = Boolean(site);
+  if (!site) return;
+  $("#site-quiz-name").textContent = site.short;
+  const siteBox = $("#site-questions");
+  siteBox.innerHTML = questionsHtml(SITE_QUESTIONS, site.answers, "site");
+  bindQuestions(siteBox, site.answers);
+}
+
+// Sous chaque question : ce qu'un « oui » changerait, puis ce qu'il change vraiment pour le site
+// affiché. Sans cela, un « oui » sans effet (secteur déjà au maximum, exposition faible) reste
+// incompréhensible.
+function effectText(q, site, hazards, g) {
+  if (!q.hazards.length) return "Signalé dans la synthèse, sans modifier les notes";
+  const maxed = (id) => sectorSensitivity(SECTORS[state.sector][id][0]) === 2;
+  const answers = answersFor(site);
+  if (answers[q.id] !== true || !hazards) {
+    const open = q.hazards.filter((id) => !maxed(id));
+    const shut = q.hazards.filter(maxed);
+    const first = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+    return [
+      open.length ? `Un « oui » relève la sensibilité : ${open.map(hazardName).join(", ")}` : "",
+      shut.length ? `${first(shut.map(hazardName).join(", "))} : sensibilité déjà au maximum pour votre secteur, un « oui » n'y change rien` : "",
+    ]
+      .filter(Boolean)
+      .join(". ");
+  }
+  const without = assess(site, { ...answers, [q.id]: false });
+  const parts = q.hazards.map((id) => {
+    const now = hazards.find((h) => h.id === id);
+    const was = without.find((h) => h.id === id);
+    let text;
+    if (now.sensitivity.base === 2) text = "sensibilité déjà au maximum pour votre secteur";
+    else if (now.stable[g]) text = "noté « Stable », sans note à relever : votre réponse est signalée dans la synthèse";
+    else if (now.risk[g] == null) text = "pas de données ici";
+    else if (was.sensitivity.level === now.sensitivity.level) text = "un seul cran au total avec vos autres « oui » sur cet aléa";
+    else if (was.risk[g] !== now.risk[g]) text = `note relevée de ${LEVELS[was.risk[g]]} à ${LEVELS[now.risk[g]]}`;
+    else if (now.exposure[g].level === 0) text = "note inchangée, car l'exposition est faible";
+    else text = `note déjà ${LEVELS[now.risk[g]]}`;
+    return `${hazardName(id)} : ${text}`;
+  });
+  return `Effet pour ${site.tip} ${horizonText(g)} · ${parts.join(" · ")}`;
+}
+
+function renderEffects(site, hazards) {
+  document.querySelectorAll("#quiz .q").forEach((block) => {
+    const q = QUESTIONS.find((x) => x.id === block.dataset.q);
+    const effect = block.querySelector(".q-effect");
+    effect.textContent = effectText(q, site, hazards, state.gwl);
+    effect.classList.toggle("on", answersFor(site)[q.id] === true && q.hazards.length > 0 && Boolean(hazards));
   });
 }
 
@@ -241,11 +396,11 @@ function renderControls() {
 
 const ARROWS = ["", "↑", "↑↑"];
 const LEVEL_HELP = [
-  "peu d'impact attendu pour votre activité",
+  "pas de signal marqué dans les moyennes climatiques, ce qui ne dit rien des événements exceptionnels",
   "à surveiller et à intégrer dans vos plans",
   "à traiter en priorité",
 ];
-const STABLE_HELP = "pas de hausse notable ; le niveau de risque actuel n'est pas mesuré par ces données";
+const STABLE_HELP = "pas de hausse notable ; le niveau actuel de l'aléa n'est pas mesuré par ces données";
 
 const hazardName = (id) => HAZARDS[id].label.toLowerCase();
 const help = (text) => `<p class="help">${esc(text)}</p>`;
@@ -262,25 +417,79 @@ const badge = (level, trend = 0, by = null, g = 0) =>
 const stableBadge = () => `<span class="lvl lna" title="${esc("Stable : " + STABLE_HELP)}">Stable</span>`;
 
 // Note d'un aléa à un horizon : niveau de risque, ou « Stable » pour un aléa dont on ne mesure que l'évolution.
-const riskBadge = (h, i) => (h.stable[i] ? stableBadge() : badge(h.risk[i], h.trend[i], h.trendBy[i], i));
+// Fourchette de la note selon les modèles climatiques, quand elle s'écarte de la note centrale.
+function rangeText(h, i) {
+  const r = h.range[i];
+  if (!r) return "";
+  // « Stable, jusqu'à Faible » n'aurait pas de sens : on ne signale qu'une borne haute au moins Moyen.
+  if (h.stable[i]) return r.expoHi >= 1 && r.hi >= 1 ? `jusqu'à ${LEVELS[r.hi]}` : "";
+  if (h.changeOnly && r.expoLo === 0) return `Stable à ${LEVELS[r.hi]}`;
+  return r.lo === r.hi ? "" : `${LEVELS[r.lo]} à ${LEVELS[r.hi]}`;
+}
+
+const riskBadge = (h, i) => {
+  const note = h.stable[i] ? stableBadge() : badge(h.risk[i], h.trend[i], h.trendBy[i], i);
+  const range = rangeText(h, i);
+  return range
+    ? `<span class="noted">${note}<small class="range" title="Fourchette de la note selon les modèles climatiques (quantiles 17 % et 83 %)">${esc(range)}</small></span>`
+    : note;
+};
 
 // Légende commune des niveaux et des flèches.
 const legend = () => `<div class="legend">
+  <span><strong>Niveau d'attention</strong></span>
   ${LEVELS.map((l, i) => `<span>${badge(i)} ${esc(LEVEL_HELP[i])}</span>`).join("")}
   <span>${stableBadge()} ${esc(STABLE_HELP)} (vent)</span>
-  <span>${badge(null)} pas de données pour cette région</span>
-  <span><strong>↑</strong> et <strong>↑↑</strong> : le risque s'aggrave. Un des chiffres qui servent à noter cet aléa (par exemple le nombre de jours au-dessus de 30 °C) augmente d'au moins ${TREND_PCT[0]} % (↑) ou ${TREND_PCT[1]} % (↑↑) par rapport à ${esc(REF)}. Ce chiffre est indiqué dans la synthèse et dans la fiche de l'aléa.</span>
+  <span>${badge(null)} pas de données ici</span>
+  <span><small class="range">Moyen à Élevé</small> sous une note : fourchette selon les modèles climatiques. La note affichée repose sur leur moyenne.</span>
+  <span><strong>↑</strong> et <strong>↑↑</strong> : la tendance est à la hausse. Un des chiffres qui servent à noter cet aléa (par exemple le nombre de jours au-dessus de 30 °C) augmente d'au moins ${TREND_PCT[0]} % (↑) ou ${TREND_PCT[1]} % (↑↑) par rapport à ${esc(REF)}. Ce chiffre est indiqué dans la synthèse et dans la fiche de l'aléa. Une partie de cette hausse a déjà eu lieu depuis la période de référence.</span>
 </div>`;
 
+// Données du site : celles de sa maille si elle existe, sinon la moyenne de sa région.
 function regionContext(site) {
   const { NUTS_ID: code, NAME_LATN: name, CNTR_CODE: country } = site.region.properties;
-  return { code, name, country, data: state.data.regions[code] };
+  return { code, name, country, data: site.cell?.data ?? state.data.regions[code] };
 }
 
-function assess(site) {
+function assess(site, answers = answersFor(site)) {
   const { data } = regionContext(site);
-  return assessSite(data, state.data.meta, state.sector, state.answers);
+  // Les seuils « position en Europe » se lisent sur la même base que les valeurs : mailles ou régions.
+  const meta = site.cell ? { thresholds: state.grid.thresholds } : state.data.meta;
+  return assessSite(data, meta, state.sector, answers);
 }
+
+// Côté d'une maille, arrondi : 0,25° font environ 28 km du nord au sud et 20 km d'est en ouest vers 45° N.
+// Contraste local d'un indicateur : niveaux qu'il prendrait dans les mailles voisines (jusqu'à 40 km).
+// Sur un littoral ou en montagne, la maille retenue peut mal représenter le site : on le signale.
+function localContrast(site, ind, g) {
+  const near = site.cell?.near?.[ind.id];
+  if (!near || ind.rule.info || ind.rule.change) return null;
+  const meta = { thresholds: state.grid.thresholds };
+  const levelOf = (value) => {
+    const values = [...ind.values];
+    values[g] = value;
+    return indicatorLevel(ind, values, g, meta);
+  };
+  const lo = levelOf(near.min[g]);
+  const hi = levelOf(near.max[g]);
+  return lo == null || hi == null || lo === hi ? null : { min: near.min[g], max: near.max[g], lo, hi };
+}
+
+// Contraste le plus fort parmi les indicateurs d'un aléa (null si les voisines donnent le même niveau).
+function hazardContrast(site, h, g) {
+  const found = h.indicators.map((ind) => ({ ind, c: localContrast(site, ind, g) })).filter((x) => x.c);
+  if (!found.length) return null;
+  return found.reduce((a, b) => (b.c.hi - b.c.lo > a.c.hi - a.c.lo ? b : a));
+}
+
+const contrastText = ({ ind, c }) =>
+  `dans un rayon de ${CELL_MAX_KM} km, ${ind.label.charAt(0).toLowerCase() + ind.label.slice(1)} : de ${num(c.min)} à ${num(c.max)} ${ind.unit} (niveau ${LEVELS[c.lo]} à ${LEVELS[c.hi]})`;
+
+const cellSize = () => Math.round(state.grid.step * 100);
+const whereText = (site, name) =>
+  site.cell
+    ? `une maille d'environ ${cellSize()} km de côté autour du site`
+    : `la région ${name} (données en grille indisponibles ici)`;
 
 // Phrase chiffrée pour le dirigeant : l'indicateur qui justifie la note, référence → horizon.
 function keyFigure(h, g) {
@@ -314,15 +523,40 @@ function synthesis(site, hazards, g) {
 
   const notes = [];
   if (site.nearKm > 0)
-    notes.push(`Ce point est en dehors des contours simplifiés des régions (littoral, île ou pays voisin non couvert) : les données sont celles de la région la plus proche, ${name}, à ${num(Math.max(site.nearKm, 0.1))} km.`);
+    notes.push(
+      site.cell
+        ? `Ce point est en dehors des contours simplifiés des régions (littoral, île ou pays voisin non couvert) : il est rattaché à la région ${name}, à ${num(Math.max(site.nearKm, 0.1))} km.`
+        : `Ce point est en dehors des contours simplifiés des régions (littoral, île ou pays voisin non couvert) : les données sont celles de la région la plus proche, ${name}, à ${num(Math.max(site.nearKm, 0.1))} km.`,
+    );
+  if (site.cell && site.cell.km > (state.grid.step * 111) / 2)
+    notes.push(`Site en bord de mer ou en limite de zone couverte : les données sont celles de la maille terrestre la plus proche, centrée à ${num(site.cell.km)} km.`);
+  for (const h of hazards) {
+    const contrast = hazardContrast(site, h, g);
+    // Deux crans d'écart entre mailles voisines : la note de cet aléa dépend beaucoup de l'endroit exact.
+    if (contrast && contrast.c.hi - contrast.c.lo >= 2)
+      notes.push(`${h.label} : relief ou littoral marqué autour du site. ${contrastText(contrast).replace(/^d/, "D")}. La note est à lire avec prudence.`);
+  }
   if (missing.length)
-    notes.push(`Non évalué faute de données Copernicus pour cette région : ${missing.map((h) => hazardName(h.id)).join(", ")}.`);
+    notes.push(`Non évalué faute de données Copernicus ici : ${missing.map((h) => hazardName(h.id)).join(", ")}.`);
+  const answers = answersFor(site);
   for (const h of stable)
-    notes.push(`${h.label} : pas de hausse notable des vents extrêmes ${horizonText(g)}. Les données ne mesurent pas le niveau de risque de tempête actuel de la région.`);
+    notes.push(
+      `${h.label} : pas de hausse notable des vents extrêmes ${horizonText(g)}. Les données ne mesurent pas le niveau de risque de tempête actuel de la région.${
+        // La réponse sur le bâtiment ne peut pas relever une note « Stable » : on la restitue ici.
+        answers.building === true ? " Vous signalez un bâtiment léger ou ancien, ou des équipements en extérieur : faites contrôler toitures, bardages et structures légères, même sans hausse annoncée." : ""
+      }`,
+    );
   if (country === "FR" && top.some((h) => h.id === "heat"))
     notes.push("En France, l'employeur doit prévoir des mesures pour les épisodes de chaleur intense dès la vigilance canicule jaune (décret n° 2025-482).");
-  if (state.answers.suppliers)
+  if (answers.suppliers === true)
     notes.push("Fournisseurs ou clients concentrés : vérifiez aussi l'exposition de leurs sites (risque indirect, non noté ici).");
+  const unanswered = QUESTIONS.filter((q) => answers[q.id] === undefined).length;
+  if (unanswered)
+    notes.push(
+      unanswered === QUESTIONS.length
+        ? "Questionnaire non rempli : la sensibilité repose sur votre secteur seul."
+        : `Questionnaire : ${unanswered} question${unanswered > 1 ? "s" : ""} sur ${QUESTIONS.length} sans réponse. Pour ces points, la sensibilité repose sur votre secteur seul.`,
+    );
 
   const body = top.length
     ? `<div class="top3">${top
@@ -336,19 +570,22 @@ function synthesis(site, hazards, g) {
         )
         .join("")}</div>
       <h4>Actions prioritaires</h4>
-      ${help("Une première action par risque, à approfondir avec votre conseiller.")}
+      ${help("Une première action par aléa, à approfondir avec votre conseiller.")}
       <ol class="actions">${actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>`
-    : `<p>Aucun risque moyen ou élevé ${horizonText(g)} parmi les aléas évalués, pour ce secteur dans cette région.</p>`;
+    : `<p>Aucun aléa en niveau d'attention moyen ou élevé ${horizonText(g)} parmi ceux qui sont évalués, pour ce secteur dans cette région.</p>`;
 
   return `<section class="layer layer-1">
     <div class="layer-head"><span class="tag">1 · Synthèse</span><span class="muted">pour le dirigeant</span></div>
     <h2>${esc(site.title)}</h2>
-    <p class="muted">${esc(SECTORS[state.sector].label)} · région ${esc(name)} (${esc(code)}) · ${
+    <p class="muted">${esc(SECTORS[state.sector].label)} · région ${esc(name)} (${esc(code)})${site.cell ? ` · maille de ${cellSize()} km` : ""} · ${
       g === 0 ? "climat de référence " + esc(REF) : "horizon " + esc(GWLS[g].year) + " (" + esc(GWLS[g].label) + ")"
     }</p>
-    ${help(`Les aléas climatiques qui pèsent le plus sur votre activité ${horizonText(g)}, classés du plus au moins préoccupant. Les chiffres sont des moyennes pour la région ${name}, pas pour l'adresse exacte.${
+    ${help(`Les aléas climatiques qui pèsent le plus sur votre activité ${horizonText(g)}, classés du plus au moins préoccupant. Les chiffres sont des moyennes sur ${whereText(site, name)}, pas pour l'adresse exacte.${
       g === 0 ? "" : ` Les valeurs futures sont des projections de modèles climatiques, pas des prévisions. Elles sont comparées à la moyenne ${REF} : le climat d'aujourd'hui est déjà plus chaud que cette référence.`
     }`)}
+    <div class="callout"><strong>Ce que montre ce rapport :</strong> les tendances de fond du climat autour du site, en année moyenne.
+      <strong>Ce qu'il ne montre pas :</strong> les événements exceptionnels (crue, canicule record, tempête), ni la situation exacte de votre adresse (altitude, bord de mer, cours d'eau, chaleur des centres-villes).
+      Un niveau « Faible » ne signifie donc pas une absence de risque.</div>
     ${body}
     ${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}
     ${legend()}
@@ -366,17 +603,23 @@ function justification(h, g) {
   const rule = ind.rule;
   let why;
   if (rule.abs) why = `${ind.label} : ${num(ind.values[g])} (seuils ${rule.abs.join(" / ")} ${ind.unit})`;
-  else if (rule.europe) why = `${ind.label} : ${num(ind.values[g])}, par rapport aux régions européennes`;
+  else if (rule.europe) why = `${ind.label} : ${num(ind.values[g])}, par rapport au reste de l'Europe`;
   else why = `${ind.label} : ${num(ind.values[0])} → ${num(ind.values[g])} par rapport au climat local`;
   const s = h.sensitivity;
-  const sens = [`secteur : ${LEVELS[s.base]}`, ...s.reasons.map((q) => "+ " + q.text.toLowerCase())].join(" ; ");
+  const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+  const sens = s.reasons.length
+    ? `secteur : ${LEVELS[s.base]}, relevée d'un cran par vos réponses : ${s.reasons.map((q) => lower(q.text)).join(" ; ")}`
+    : `secteur : ${LEVELS[s.base]}`;
   return `Exposition <strong>${LEVELS[e.level]}</strong> (${esc(why)}) × sensibilité <strong>${LEVELS[s.level]}</strong> (${esc(sens)}) → <strong>${LEVELS[h.risk[g]]}</strong>`;
 }
 
-function hazardCard(h, g) {
+function hazardCard(site, h, g) {
+  const contrast = hazardContrast(site, h, g);
   const rows = h.indicators
     .map((ind) => {
       const v = ind.values[g];
+      const c = localContrast(site, ind, g);
+      const nearby = c ? `<br><small class="muted" title="Valeurs des mailles terrestres voisines, jusqu'à ${CELL_MAX_KM} km">alentours : ${num(c.min)} à ${num(c.max)}</small>` : "";
       const range = g > 0 && ind.lo[g] != null ? `<br><small class="muted" title="Fourchette entre modèles (17–83 %)">${num(ind.lo[g])}–${num(ind.hi[g])}</small>` : "";
       const local = ind.relative ? `<br><small class="muted">par rapport au climat local</small>` : "";
       const lvl =
@@ -386,18 +629,20 @@ function hazardCard(h, g) {
             ? stableBadge()
             : badge(ind.levels[g]);
       return `<tr><td>${esc(ind.label)} <span class="muted">${esc(ind.unit)}</span>${local}<small class="ind-help">${esc(ind.help)}</small></td>
-        <td>${num(ind.values[0])}</td>${g === 0 ? "" : `<td>${num(v)}${range}</td>`}<td>${lvl}</td></tr>`;
+        <td>${num(ind.values[0])}${g === 0 ? nearby : ""}</td>${g === 0 ? "" : `<td>${num(v)}${range}${nearby}</td>`}<td>${lvl}</td></tr>`;
     })
     .join("");
   const table = rows
     ? `<table class="ind"><thead><tr><th>Indicateur</th><th>${esc(REF)}</th>${g === 0 ? "" : `<th>${esc(GWLS[g].year)}</th>`}<th>Niveau</th></tr></thead>
       <tbody>${rows}</tbody></table>
-    ${help(`« ${REF} » = climat de référence, moyenne sur cette période. ${g === 0 ? "" : `« ${GWLS[g].year} » = moyenne des modèles climatiques ; la petite ligne donne la fourchette où se situent 2 modèles sur 3. `}« Niveau » = note de l'indicateur selon son seuil ; l'aléa retient l'indicateur le plus défavorable.`)}`
+    ${help(`« ${REF} » = climat de référence, moyenne sur cette période. ${g === 0 ? "" : `« ${GWLS[g].year} » = moyenne des modèles climatiques ; la petite ligne donne la fourchette où se situent 2 modèles sur 3. `}« Niveau » = note de l'indicateur selon son seuil ; l'aléa retient l'indicateur le plus défavorable.${contrast ? " « Alentours » = valeurs des mailles voisines quand elles changeraient le niveau." : ""}`)}`
     : "";
   return `<article class="card">
     <div class="card-head"><h3>${h.icon} ${esc(h.label)}</h3>${riskBadge(h, g)}</div>
     ${help(h.help)}
     <p class="why"><span class="k">Comment la note est obtenue</span> ${justification(h, g)}</p>
+    ${rangeText(h, g) ? `<p class="why"><span class="k">Fourchette selon les modèles</span> ${esc(rangeText(h, g))}. La note repose sur la moyenne des modèles ; les quantiles 17 % et 83 % donnent ces bornes.</p>` : ""}
+    ${contrast ? `<p class="why"><span class="k">Contraste local</span> ${esc(contrastText(contrast).replace(/^d/, "D"))}. Les mailles voisines donnent un niveau différent : la valeur dépend de l'endroit exact (relief, distance à la mer).</p>` : ""}
     ${h.trendBy[g] ? `<p class="why"><span class="k">Pourquoi la flèche ${ARROWS[h.trend[g]]}</span> ${esc(trendText(h.trendBy[g], g))}</p>` : ""}
     <p class="impact"><span class="k">Conséquence possible pour votre secteur</span> ${esc(h.impact)}</p>
     ${table}
@@ -416,11 +661,12 @@ function sitesTable(g) {
     .join("");
   const head = assess(located[0]).map((h) => `<th>${h.icon} ${esc(h.label)}</th>`).join("");
   return `<h4>Comparaison des sites ${horizonText(g)}</h4>
-    ${help("Même entreprise et mêmes réponses au questionnaire : seule l'exposition change d'un site à l'autre.")}
+    ${help("Même secteur et mêmes réponses sur l'entreprise : d'un site à l'autre, seules changent l'exposition et les réponses propres à chaque site.")}
     <div class="matrix-wrap"><table class="matrix"><thead><tr><th>Site</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function detail(hazards, g) {
+function detail(site, hazards, g) {
+  const sims = site.cell ? state.grid.simulations.hot_days : null;
   const matrix = `<div class="matrix-wrap"><table class="matrix">
     <thead><tr><th>Aléa</th>${GWLS.map(
       (x, i) => `<th class="${i === g ? "sel" : ""}">${esc(x.year)}<small>${i === 0 ? "Référence" : esc(x.label)}</small></th>`,
@@ -433,13 +679,15 @@ function detail(hazards, g) {
     <summary><span class="tag">2 · Détail</span><span class="muted">pour le conseiller : notes justifiées, tous les horizons</span></summary>
     ${help("Chaque note croise deux éléments : l'exposition, c'est-à-dire ce que le climat fait subir à la région, et la sensibilité, c'est-à-dire à quel point votre activité en souffre (selon votre secteur et vos réponses au questionnaire).")}
     <h4>Évolution dans le temps</h4>
-    ${help(`Une ligne par aléa, une colonne par horizon. La première colonne est la référence ${REF} ; le climat d'aujourd'hui se situe déjà entre cette référence et la colonne 2030. Les années indiquent quand le réchauffement mondial atteindrait chaque niveau selon la trajectoire européenne de référence : elles sont indicatives.`)}
+    ${help(`Une ligne par aléa, une colonne par horizon. La première colonne est la référence ${REF} ; le climat d'aujourd'hui se situe déjà entre cette référence et la colonne 2030. Les années indiquent quand le réchauffement mondial atteindrait chaque niveau selon la trajectoire européenne de référence : elles sont indicatives.${
+      sims && sims[2] < sims[0] ? ` La colonne 2100 est moins robuste : ${sims[2]} simulations sur ${sims[0]} atteignent +3 °C avant la fin du siècle.` : ""
+    }`)}
     ${matrix}
     ${legend()}
     ${sitesTable(g)}
     <h4>Fiches par aléa</h4>
     ${help("Du plus au moins préoccupant à l'horizon choisi, avec le détail des indicateurs Copernicus utilisés.")}
-    <div class="cards">${ranked(hazards, g).map((h) => hazardCard(h, g)).join("")}</div>
+    <div class="cards">${ranked(hazards, g).map((h) => hazardCard(site, h, g)).join("")}</div>
   </details>`;
 }
 
@@ -464,7 +712,7 @@ function annex(site, hazards) {
     ${help("Toutes les valeurs et règles utilisées, pour vérifier les notes ou les réutiliser dans vos propres outils.")}
     <div class="annex-actions"><button type="button" class="ghost" id="csv">Exporter les données (CSV)</button></div>
     ${help("Le fichier CSV contient tous les sites, indicateurs et horizons, avec les fourchettes et les niveaux. Il est au format français (point-virgule, virgule décimale).")}
-    <h4>Valeurs pour la région ${esc(code)}</h4>
+    <h4>${site.cell ? `Valeurs pour la maille du site (centre ${fmt3.format(site.cell.lat)} ; ${fmt3.format(site.cell.lon)})` : `Valeurs pour la région ${esc(code)}`}</h4>
     ${help("Moyenne des modèles climatiques ; la petite ligne donne la fourchette entre modèles (quantiles 17 % et 83 %, soit 2 modèles sur 3). La dernière colonne indique d'où vient chaque seuil.")}
     <div class="matrix-wrap"><table class="ind annex">
       <thead><tr><th>Aléa</th><th>Indicateur</th><th>Unité</th>${GWLS.map((g) => `<th>${esc(g.label)}</th>`).join("")}<th>Règle et source du seuil</th></tr></thead>
@@ -472,17 +720,22 @@ function annex(site, hazards) {
     <h4>Méthode</h4>
     ${help("Comment les notes sont calculées, étape par étape.")}
     <ul class="method">
-      <li>Démarche de « screening » du guide européen C(2021) 5430 sur le climate proofing : sensibilité × exposition = vulnérabilité, sur 3 niveaux (Faible, Moyen, Élevé).</li>
-      <li>Référence : moyenne ${esc(REF)}, reconstituée à partir des projections (valeur à un niveau de réchauffement moins l'écart à ce niveau), à 1 ou 2 jours près. Le climat de l'année en cours est déjà plus chaud que cette référence.</li>
+      <li>Démarche de « screening » du guide européen C(2021) 5430 sur le climate proofing : sensibilité × exposition = vulnérabilité, sur 3 niveaux (Faible, Moyen, Élevé). Les notes sont des niveaux d'attention : une vulnérabilité au sens de ce guide, pas un risque chiffré (probabilité × gravité).</li>
+      <li>Portée : des indicateurs de climat moyen, sur une maille d'environ 25 km. Confrontées à des catastrophes passées, les notes ne les anticipent pas toujours : Altenahr (crue de l'Ahr, 2021) et la vallée de l'Aa (crues du Pas-de-Calais, 2023-24) sont notées Faible pour les pluies extrêmes.</li>
+      <li>Fourchette : la même règle est appliquée aux quantiles 17 % et 83 % de l'ensemble de modèles. Elle est affichée sous la note quand elle s'en écarte.</li>
+      <li>Référence : moyenne ${esc(REF)} des mêmes simulations. Le climat de l'année en cours est déjà plus chaud que cette référence.</li>
       <li>Exposition d'un aléa : indicateur le plus défavorable, sur la référence et à +1,5 °C, +2 °C et +3 °C de réchauffement mondial. Années indicatives selon la trajectoire de référence du European Climate Viewer.</li>
-      <li>Sensibilité : note sectorielle d'expert, relevée d'un niveau par réponse « oui » au questionnaire (thèmes du guide européen), plafonnée à Élevé. Une sensibilité élevée donne un risque Moyen même quand l'exposition est faible.</li>
+      <li>Sensibilité : note sectorielle d'expert, relevée d'un cran, et d'un seul, dès qu'une réponse « oui » du questionnaire concerne l'aléa (thèmes du guide européen). ${COMPANY_QUESTIONS.length} questions décrivent l'entreprise et valent pour tous ses sites, ${SITE_QUESTIONS.length} décrivent un lieu et se posent pour chaque site. « Non » et « ne sait pas » laissent la note du secteur. Une sensibilité élevée donne un niveau Moyen même quand l'exposition est faible.</li>
       <li>Vent : le seul indicateur disponible est défini par rapport au climat local. Sans hausse d'au moins 15 %, l'aléa est noté « Stable » : le niveau de risque de tempête actuel n'est pas mesuré.</li>
       <li>Tendance : ↑ ou ↑↑ si un indicateur augmente d'au moins ${TREND_PCT[0]} % ou ${TREND_PCT[1]} % par rapport à ${esc(REF)}, comptée seulement pour un indicateur qui atteint lui-même au moins Moyen, et affichée seulement quand le risque est au moins Moyen.</li>
-      <li>Données : Copernicus C3S, « Aggregated climate indicators for Europe » v2.0 (CDS, CC-BY 4.0) ; moyenne multi-modèles par région NUTS 2, fourchette 17–83 % entre modèles. L'ensemble de modèles varie d'un niveau de réchauffement à l'autre : de petits allers-retours entre deux horizons sont possibles.</li>
-      <li>Rattachement : un point situé hors des contours simplifiés (1:20 000 000) est rattaché à la région la plus proche, jusqu'à ${NEAR_KM} km.</li>
+      <li>Données : Copernicus C3S, « Climate indicators for Europe » v2.0 (CDS, CC-BY 4.0) : séries annuelles par modèle sur une grille de 0,25°, issues de 9 couples de modèles EURO-CORDEX corrigés de leurs biais, sous deux scénarios (RCP4.5 et RCP8.5), soit 18 simulations (10 pour le danger d'incendie).</li>
+      <li>Niveaux de réchauffement : recalculés avec la méthode de l'Atlas du GIEC. Pour chaque simulation, moyenne sur les 20 ans centrés sur l'année où son modèle global atteint +1,5 °C, +2 °C ou +3 °C. La valeur affichée est la référence plus la moyenne des écarts des simulations ; à +3 °C, 12 simulations seulement atteignent le niveau.</li>
+      <li>Contraste local : la même règle est appliquée aux valeurs extrêmes des mailles terrestres situées à ${CELL_MAX_KM} km au plus du site. Si le niveau change, les valeurs des alentours sont affichées ; à deux crans d'écart, la synthèse le signale.</li>
+      <li>Maille : on retient la maille terrestre dont le centre est le plus proche du site, jusqu'à ${CELL_MAX_KM} km. Sans maille (outre-mer, îles éloignées), l'outil revient à la moyenne régionale NUTS 2 du jeu « Aggregated climate indicators for Europe ».</li>
+      <li>Région : elle sert à nommer le lieu. Un point situé hors des contours simplifiés (1:20 000 000) est rattaché à la région la plus proche, jusqu'à ${NEAR_KM} km.</li>
     </ul>
     <h4>Matrice de croisement</h4>
-    ${help("Lecture : une ligne par niveau d'exposition, une colonne par niveau de sensibilité ; la case donne le niveau de risque.")}
+    ${help("Lecture : une ligne par niveau d'exposition, une colonne par niveau de sensibilité ; la case donne le niveau d'attention.")}
     <table class="matrix small"><thead><tr><th></th>${LEVELS.map((l) => `<th>Sensibilité ${l}</th>`).join("")}</tr></thead><tbody>${m}</tbody></table>
   </details>`;
 }
@@ -496,7 +749,7 @@ function csvCell(value) {
 }
 
 function exportCsv() {
-  const header = ["site", "nuts", "secteur", "alea", "indicateur", "unite", "horizon", "valeur", "p17", "p83", "niveau_indicateur", "exposition_alea", "sensibilite_alea", "risque_alea"];
+  const header = ["site", "nuts", "source", "maille_lat", "maille_lon", "secteur", "alea", "indicateur", "unite", "horizon", "valeur", "p17", "p83", "niveau_indicateur", "exposition_alea", "sensibilite_alea", "attention_alea", "attention_bas", "attention_haut"];
   const lines = [header];
   const level = (l) => (l == null ? "" : LEVELS[l]);
   for (const site of state.sites.filter((s) => s.region)) {
@@ -505,13 +758,15 @@ function exportCsv() {
       for (const ind of h.indicators) {
         GWLS.forEach((g, i) => {
           lines.push([
-            site.short, code, SECTORS[state.sector].label, h.label, ind.id, ind.unit,
+            site.short, code, site.cell ? "maille 0,25°" : "région NUTS 2", site.cell?.lat, site.cell?.lon, SECTORS[state.sector].label, h.label, ind.id, ind.unit,
             i === 0 ? g.label : `${g.year} (${g.label})`,
             ind.values[i], ind.lo[i], ind.hi[i],
             h.stable[i] ? "Stable" : level(ind.levels[i]),
             h.stable[i] ? "Stable" : level(h.exposure[i]?.level),
             level(h.sensitivity.level),
             h.stable[i] ? "Stable (niveau non mesuré)" : level(h.risk[i]),
+            h.stable[i] ? "Stable" : level(h.range[i]?.lo),
+            h.stable[i] && !rangeText(h, i) ? "Stable" : level(h.range[i]?.hi),
           ]);
         });
       }
@@ -529,13 +784,17 @@ function exportCsv() {
 
 function renderReport() {
   const report = $("#report");
-  const site = state.sites.find((s) => s.id === state.active);
+  const site = activeSite();
+  // Par défaut, le questionnaire décrit l'effet possible de chaque « oui » ; il est précisé plus bas
+  // quand le site a des données.
+  renderEffects(site, null);
   if (!site) {
     report.hidden = true;
     return;
   }
   report.hidden = false;
   regionLayer.clearLayers();
+  cellLayer.clearLayers();
 
   if (!site.region) {
     report.innerHTML = `<section class="layer"><h2>${esc(site.title)}</h2>
@@ -543,19 +802,29 @@ function renderReport() {
     return;
   }
   regionLayer.addData(site.region);
-  map.fitBounds(regionLayer.getBounds(), { maxZoom: 9 });
+  if (site.cell) {
+    const half = state.grid.step / 2;
+    const square = L.rectangle(
+      [[site.cell.lat - half, site.cell.lon - half], [site.cell.lat + half, site.cell.lon + half]],
+      { color: "#1f6f5c", weight: 2, fillOpacity: 0.15 },
+    ).addTo(cellLayer);
+    map.fitBounds(square.getBounds().pad(2), { maxZoom: 9 });
+  } else {
+    map.fitBounds(regionLayer.getBounds(), { maxZoom: 9 });
+  }
 
   const { code, name, data } = regionContext(site);
   const hazards = data ? assess(site) : [];
   // Outre-mer et certaines îles : la région existe, mais les projections européennes ne la couvrent pas.
   if (!hazards.some((h) => h.indicators.length)) {
     report.innerHTML = `<section class="layer"><h2>${esc(site.title)}</h2>
-      <div class="banner">Pas de données Copernicus pour la région ${esc(name)} (${esc(code)}).</div>
+      <div class="banner">Pas de données Copernicus pour ce site (région ${esc(name)}, ${esc(code)}).</div>
       <p>Les projections utilisées couvrent l'Europe continentale et les îles proches. Les régions d'outre-mer et certaines îles éloignées n'y figurent pas : l'outil ne peut pas évaluer ce site, ce qui ne signifie pas qu'il est sans risque.</p></section>`;
     return;
   }
   const g = state.gwl;
-  report.innerHTML = synthesis(site, hazards, g) + detail(hazards, g) + annex(site, hazards);
+  renderEffects(site, hazards);
+  report.innerHTML = synthesis(site, hazards, g) + detail(site, hazards, g) + annex(site, hazards);
   $("#csv").onclick = exportCsv;
 }
 
@@ -575,12 +844,15 @@ window.addEventListener("beforeprint", () => document.querySelectorAll("#report 
 if (isNarrow()) $("#quiz").open = false;
 
 async function init() {
-  const [data, nuts] = await Promise.all([
+  const [data, nuts, grid] = await Promise.all([
     fetch("data/indicators.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("data/indicators.json introuvable")))),
     fetch("data/nuts2.geojson").then((r) => r.json()),
+    // Sans la grille, l'outil fonctionne encore avec les moyennes régionales.
+    fetch("data/grid/index.json").then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
   state.data = data;
   state.nuts = nuts;
+  state.grid = grid;
   $("#demo-banner").hidden = !data.meta.demo;
   render();
 }

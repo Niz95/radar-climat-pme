@@ -15,7 +15,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌡️%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <header class="top">
@@ -55,15 +55,21 @@
         <span class="label">Sites analysés</span>
         <ul id="sites" class="sites"></ul>
         <button id="to-report" type="button">Voir le rapport ↓</button>
-        <p class="hint">Cliquez sur un site pour afficher son rapport, sur × pour le retirer. Sur la carte, la zone colorée est la région dont les données sont utilisées.</p>
+        <p class="hint">Cliquez sur un site pour afficher son rapport, sur × pour le retirer. Sur la carte, le carré est la maille d'environ 25 km dont les données sont utilisées ; le pointillé est la région.</p>
       </div>
     </section>
 
     <section class="panel quiz">
       <details id="quiz" open>
-        <summary>Votre entreprise <span class="muted">· 8 questions, communes à tous les sites</span></summary>
-        <p class="hint">Chaque « oui » augmente d'un cran la sensibilité aux aléas indiqués sous la question. En cas de doute, laissez décoché.</p>
+        <summary>Questionnaire <span class="muted">· 12 questions : 7 sur l'entreprise, 5 pour chaque site</span></summary>
+        <p class="hint">Un « oui » relève d'un cran la sensibilité aux aléas indiqués sous la question ; plusieurs « oui » sur le même aléa ne s'additionnent pas. « Non » et « ne sait pas » ne changent pas les notes. La ligne sous chaque question indique l'effet réel de votre réponse.</p>
+        <h3 class="quiz-title">Votre entreprise <span class="muted">· communes à tous les sites</span></h3>
         <div id="questions" class="questions"></div>
+        <div id="site-quiz" hidden>
+          <h3 class="quiz-title">Ce site : <span id="site-quiz-name"></span> <span class="muted">· réponses propres à ce site</span></h3>
+          <div id="site-questions" class="questions"></div>
+        </div>
+        <p id="site-quiz-empty" class="hint">Ajoutez un site pour répondre aux 5 questions propres à chaque lieu (cours d'eau, bâtiment, forêt, origine de l'eau).</p>
       </details>
     </section>
 
@@ -76,17 +82,17 @@
 
   <footer class="foot">
     <p><strong>Sources.</strong> Contient des informations modifiées du Copernicus Climate Change Service (2026),
-      « Aggregated climate indicators for Europe » v2.0 (CDS, licence CC-BY 4.0) : moyenne multi-modèles par région NUTS 2, fourchette 17–83 % entre modèles.
+      « Climate indicators for Europe » v2.0 (CDS, licence CC-BY 4.0) : moyenne de 18 simulations sur une grille de 0,25°, fourchette 17–83 % entre modèles ; à défaut de maille, moyennes régionales du jeu « Aggregated climate indicators for Europe ».
       Ni la Commission européenne ni l'ECMWF ne sont responsables de l'usage qui peut être fait de ces informations.
       © EuroGeographics pour les limites administratives (GISCO, Eurostat). Recherche d'adresse et fond de carte : © contributeurs OpenStreetMap (ODbL).</p>
-    <p><strong>Limites.</strong> Projections issues de modèles climatiques, pas des prévisions. Les valeurs sont des moyennes sur de grandes régions
-      (NUTS 2, par exemple une région française) et ne décrivent pas le risque à l'échelle d'un bâtiment, notamment pour les inondations :
+    <p><strong>Limites.</strong> Projections issues de modèles climatiques, pas des prévisions. Les valeurs sont des moyennes sur une maille
+      d'environ 25 km et ne décrivent pas le risque à l'échelle d'un bâtiment, notamment pour les inondations :
       consultez aussi les cartes officielles de votre pays. Les sensibilités sectorielles et plusieurs seuils sont des hypothèses du prototype.
       Outil fourni en l'état, à titre d'information : ni conseil professionnel, ni notation, ni attestation de conformité ;
       ne pas l'utiliser seul pour une décision d'investissement, de financement ou d'assurance. <a href="mentions.html">Mentions et limites complètes</a></p>
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script type="module" src="app.js?v=13"></script>
+  <script type="module" src="app.js?v=20"></script>
 </body>
 </html>

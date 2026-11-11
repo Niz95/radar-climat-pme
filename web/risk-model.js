@@ -79,7 +79,7 @@ export const HAZARDS = {
 
 // Règles d'exposition (Faible < seuil 1 ≤ Moyen < seuil 2 ≤ Élevé) :
 // - abs : seuils absolus sur la valeur ;
-// - europe : seuils = P75 et P90 des régions européennes en climat actuel (meta.thresholds) ;
+// - europe : seuils = P75 et P90 des mailles (ou régions) européennes sur la référence (meta.thresholds) ;
 // - change : indice défini par rapport au climat local (presque identique partout aujourd'hui),
 //   exposition lue dans son évolution (abs en unités, pct en %) ;
 // - info : affiché, mais n'entre pas dans le calcul.
@@ -119,17 +119,17 @@ export const INDICATORS = {
   extreme_precipitation_total: {
     hazard: "rain", label: "Cumul des pluies extrêmes",
     help: "Pluie cumulée sur les jours de pluie extrême de l'année.", unit: "mm/an",
-    rule: { europe: true }, source: "Position par rapport aux régions européennes en climat actuel (P75, P90)",
+    rule: { europe: true }, source: "Position par rapport au reste de l'Europe sur la référence (75ᵉ et 90ᵉ centiles)",
   },
   maximum_consecutive_five_day_precipitation: {
     hazard: "rain", label: "Pluie maximale sur 5 jours",
     help: "Plus forte quantité de pluie tombée en 5 jours consécutifs dans l'année : un repère pour le risque de crue.", unit: "mm",
-    rule: { europe: true }, source: "Position par rapport aux régions européennes en climat actuel (P75, P90)",
+    rule: { europe: true }, source: "Position par rapport au reste de l'Europe sur la référence (75ᵉ et 90ᵉ centiles)",
   },
   consecutive_dry_days: {
     hazard: "drought", label: "Plus longue période sèche",
     help: "Plus longue suite de jours sans pluie significative dans l'année.", unit: "jours",
-    rule: { abs: [20, 40] }, source: "Convention du prototype : 3 semaines, 6 semaines",
+    rule: { abs: [20, 40] }, source: "Convention du prototype : 3 semaines, 6 semaines. Seuil fragile : les valeurs européennes sont très resserrées autour de 20 jours",
   },
   duration_of_meteorological_droughts: {
     hazard: "drought", label: "Durée des sécheresses",
@@ -256,22 +256,36 @@ export const SECTORS = {
 export const sectorSensitivity = (note) => [0, 0, 1, 2][note];
 
 // Questionnaire, rangé selon les 4 thèmes de sensibilité du guide européen.
-// Chaque « oui » relève d'un niveau la sensibilité des aléas listés (plafond : Élevé).
+// Dès qu'un « oui » concerne un aléa, sa sensibilité monte d'un cran, et d'un seul : le nombre de
+// questions par aléa ne pèse donc pas sur la note (la chaleur en comptait 4 sur 8 auparavant).
+// Une réponse vaut true (oui), false (non) ou reste absente (ne sait pas) ; seul le « oui » compte.
+// scope "site" : la question décrit un lieu précis et se pose pour chaque site ; les autres
+// décrivent l'entreprise et valent pour tous ses sites.
 export const QUESTIONS = [
   { id: "outdoor", theme: "Actifs et procédés", hazards: ["heat"],
-    text: "Des salariés travaillent en extérieur ou dans un atelier non climatisé" },
-  { id: "building", theme: "Actifs et procédés", hazards: ["heat", "wind"],
-    text: "Le bâtiment est léger ou ancien (bardage, toiture en tôle, peu isolé)" },
-  { id: "ground", theme: "Actifs et procédés", hazards: ["rain"],
-    text: "Stocks ou équipements critiques au rez-de-chaussée ou en sous-sol, ou site proche d'un cours d'eau" },
-  { id: "forest", theme: "Actifs et procédés", hazards: ["fire"],
+    text: "Des salariés travaillent en extérieur ou dans des locaux non rafraîchis (atelier, entrepôt, cuisine)" },
+  { id: "frost", theme: "Actifs et procédés", hazards: ["cold"],
+    text: "Des activités ou des équipements en extérieur craignent le gel (chantier, canalisations, cultures)" },
+  { id: "ground", scope: "site", theme: "Actifs et procédés", hazards: ["rain"],
+    text: "Des stocks ou équipements critiques sont au rez-de-chaussée ou en sous-sol" },
+  { id: "river", scope: "site", theme: "Actifs et procédés", hazards: ["rain"],
+    text: "Le site est proche d'un cours d'eau, en bas de pente ou dans une cuvette" },
+  { id: "building", scope: "site", theme: "Actifs et procédés", hazards: ["wind"],
+    text: "Le bâtiment est léger ou ancien, ou des équipements sont en extérieur (bardage, toiture en tôle, grue, serre)" },
+  { id: "forest", scope: "site", theme: "Actifs et procédés", hazards: ["fire"],
     text: "Le site est en lisière de forêt, de garrigue ou de végétation dense" },
   { id: "water", theme: "Intrants (eau, énergie)", hazards: ["drought"],
     text: "Les procédés consomment beaucoup d'eau (lavage, refroidissement, irrigation)" },
+  { id: "supply", scope: "site", theme: "Intrants (eau, énergie)", hazards: ["drought"],
+    text: "L'eau vient d'un forage ou d'une rivière, ou des restrictions d'eau ont déjà touché le site" },
   { id: "coldchain", theme: "Intrants (eau, énergie)", hazards: ["heat"],
-    text: "Des produits ou matières sont sous chaîne du froid" },
-  { id: "summer", theme: "Produits et services", hazards: ["heat"],
-    text: "L'activité est concentrée sur l'été" },
+    text: "Des produits, matières ou équipements craignent la chaleur (chaîne du froid, serveurs, denrées)" },
+  { id: "summer", theme: "Produits et services", hazards: ["heat", "drought", "fire"],
+    text: "L'activité se concentre sur l'été (tourisme, récolte, chantiers)" },
+  // Formulation étroite : « dépend de la route » valait pour presque toute PME et relevait le froid
+  // dans 72 % des cas.
+  { id: "road", theme: "Accès et transport", hazards: ["cold", "rain"],
+    text: "Une route coupée ou verglacée arrête l'activité le jour même (livraisons en flux tendu, tournées, interventions chez les clients)" },
   { id: "suppliers", theme: "Accès et transport", hazards: [],
     text: "Fournisseurs ou clients clés concentrés sur peu de sites" },
 ];
@@ -325,10 +339,18 @@ function trendOf(values, i) {
   return pct >= TREND_PCT[1] ? 2 : pct >= TREND_PCT[0] ? 1 : 0;
 }
 
+// Niveau d'un indicateur à l'horizon i si sa valeur était une borne de la fourchette entre modèles.
+function levelAtBound(ind, bound, i, meta) {
+  if (bound?.[i] == null) return ind.levels[i];
+  const values = [...ind.values];
+  values[i] = bound[i];
+  return indicatorLevel(ind, values, i, meta);
+}
+
 export function sensitivityFor(sectorId, hazardId, answers) {
   const base = sectorSensitivity(SECTORS[sectorId][hazardId][0]);
-  const reasons = QUESTIONS.filter((q) => answers[q.id] && q.hazards.includes(hazardId));
-  return { level: Math.min(2, base + reasons.length), base, reasons };
+  const reasons = QUESTIONS.filter((q) => answers[q.id] === true && q.hazards.includes(hazardId));
+  return { level: Math.min(2, base + (reasons.length ? 1 : 0)), base, reasons };
 }
 
 export function assessSite(regionData, meta, sectorId, answers = {}) {
@@ -358,6 +380,16 @@ export function assessSite(regionData, meta, sectorId, answers = {}) {
     const sensitivity = sensitivityFor(sectorId, hazardId, answers);
     const stable = exposure.map((e) => Boolean(hazard.changeOnly && e && e.level === 0));
     const risk = exposure.map((e, i) => (e && !stable[i] ? MATRIX[e.level][sensitivity.level] : null));
+    // Fourchette de la note : la même règle appliquée aux bornes 17 % et 83 % de l'ensemble de
+    // modèles. La note centrale repose sur la moyenne, qui peut masquer un cran d'écart.
+    const range = exposure.map((e, i) => {
+      if (!e || i === 0) return null;
+      const worst = (key) => Math.max(...scored.map((ind) => levelAtBound(ind, ind[key], i, meta)).filter((l) => l != null));
+      const levels = [worst("lo"), worst("hi"), e.level];
+      const expoLo = Math.min(...levels);
+      const expoHi = Math.max(...levels);
+      return { expoLo, expoHi, lo: MATRIX[expoLo][sensitivity.level], hi: MATRIX[expoHi][sensitivity.level] };
+    });
     // Pas de flèche sur un risque Faible : elle brouille la lecture pour le dirigeant.
     const trend = rising.map((t, i) => (risk[i] >= 1 ? t : 0));
     // Indicateur qui porte la flèche, parmi ceux qui la déclenchent : de préférence celui qui
@@ -376,6 +408,6 @@ export function assessSite(regionData, meta, sectorId, answers = {}) {
       return { ind: candidates[0], pct: changePct(candidates[0].values, i) };
     });
     const impact = SECTORS[sectorId][hazardId][1];
-    return { id: hazardId, ...hazard, indicators, exposure, stable, trend, trendBy, sensitivity, risk, impact };
+    return { id: hazardId, ...hazard, indicators, exposure, stable, range, trend, trendBy, sensitivity, risk, impact };
   });
 }
