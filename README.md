@@ -37,7 +37,11 @@ sur la référence 1991–2020 et à +1,5 °C, +2 °C et +3 °C de réchauffemen
   jusqu'à 40 km. Les mailles surtout marines ont un climat de mer et sont écartées. Sans maille (outre-mer,
   îles éloignées), l'outil revient aux moyennes régionales NUTS 2 du jeu
   `sis-ecde-aggregated-climate-indicators`.
+- **Danger d'incendie** : fourni sur une autre grille, sans valeur au bord de la mer et des grands lacs.
+  Une maille sans valeur reprend celle de la maille voisine la plus proche, à 35 km au plus.
 - **Contraste local** : si les mailles voisines donneraient un autre niveau, le rapport l'indique.
+- **Périmètre** : Union européenne, Royaume-Uni, Suisse, Liechtenstein, Norvège, Islande, Turquie et
+  Balkans occidentaux.
 - **Cadre** : phase de « screening » du guide de la Commission européenne sur le climate proofing des
   infrastructures (C(2021) 5430) : l'exposition et la sensibilité, notées sur 3 niveaux (Faible, Moyen,
   Élevé), sont croisées dans une matrice 3 × 3. Ni ce guide ni la méthode OCARA (Carbone 4 / ADEME) ne

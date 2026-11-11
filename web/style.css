@@ -124,10 +124,30 @@ button.ghost { background: transparent; color: var(--accent); border: 1px solid 
   .top { flex-direction: column; align-items: flex-start; }
 }
 
+.print-only { display: none; }
 @media print {
   .layout, #print { display: none; }
-  body { background: #fff; }
-  .card, .matrix { break-inside: avoid; }
+  /* Texte un peu plus petit sur papier : le rapport tient en moins de pages. */
+  html { font-size: 13px; }
+  body { background: #fff; font-size: 12.5px; }
+  .print-only { display: block; color: var(--muted); font-size: .85rem; margin: 0 0 10px; }
+  /* On ne garde entiers que les petits blocs. Garder entiers une fiche ou un niveau du rapport
+     laisse des pages à moitié vides (la première ne contenait que le titre). */
+  .matrix, .risk-top, .callout, .ind tr, .card-head, .why, .legend { break-inside: avoid; }
+  .card-head, h4, .layer-head { break-after: avoid; }
+  .cards { display: block; }
+  .card { margin-bottom: 10px; }
+  /* Le tableau de l'annexe doit tenir dans la largeur de la page : sinon ses dernières colonnes
+     (+3 °C et source des seuils) sont coupées. */
+  .matrix-wrap { overflow: visible; }
+  .annex { font-size: .78rem; table-layout: fixed; }
+  .annex th, .annex td { padding: 3px 4px; overflow-wrap: anywhere; }
+  .annex th:nth-child(1) { width: 11%; }
+  .annex th:nth-child(2) { width: 26%; }
+  .annex th:nth-child(3) { width: 8%; }
+  .annex th:nth-child(n+4):nth-child(-n+7) { width: 8.5%; }
+  .annex .src { max-width: none; font-size: .72rem; }
+  .annex .ind-help { display: none; }
 }
 
 /* Questionnaire */
@@ -183,7 +203,6 @@ code { font-size: .8rem; }
 @media print {
   .quiz, .annex-actions { display: none; }
   .layer > summary::before { content: none; }
-  .layer, .top3 { break-inside: avoid; }
 }
 
 /* Explications */

@@ -183,6 +183,28 @@ def rounded(x):
     return round(float(x), 2 if abs(x) < 10 else 1)
 
 
+def fill_from_neighbours(arrays, mask):
+    """Donne aux mailles terrestres sans valeur celle de la maille voisine la plus proche qui en a une.
+
+    Le danger d'incendie vient d'une autre grille, qui n'a pas de valeur au bord de la mer et des
+    grands lacs : sans cela, Lisbonne, Porto ou Genève n'ont pas de note pour les feux. On ne regarde
+    que les 8 voisines (35 km au plus), comme l'application le fait pour un site côtier.
+    """
+    source = [a.copy() for a in arrays]
+    ref = source[0][0]
+    offsets = sorted(((di, dj) for di in (-1, 0, 1) for dj in (-1, 0, 1) if di or dj), key=lambda o: o[0] ** 2 + o[1] ** 2)
+    filled = 0
+    for i, j in zip(*np.nonzero(mask & np.isnan(ref))):
+        for di, dj in offsets:
+            a, b = i + di, j + dj
+            if 0 <= a < ref.shape[0] and 0 <= b < ref.shape[1] and not np.isnan(ref[a, b]):
+                for target, src in zip(arrays, source):
+                    target[:, i, j] = src[:, a, b]
+                filled += 1
+                break
+    return filled
+
+
 TILE = 16  # mailles par côté de tuile (4° × 4°)
 GRID_OUT = ROOT / "web" / "data" / "grid"
 
@@ -203,7 +225,9 @@ def build():
             ii = np.abs(la[None, :] - lat[:, None]).argmin(axis=1)
             jj = np.abs(lo_[None, :] - lon[:, None]).argmin(axis=1)
             v, lo, hi = (a[:, ii[:, None], jj[None, :]] for a in (v, lo, hi))
-            print(f"  {name} : réaligné depuis une grille {len(la)} × {len(lo_)}")
+            missing = int((mask & np.isnan(v[0])).sum())
+            filled = fill_from_neighbours((v, lo, hi), mask)
+            print(f"  {name} : réaligné depuis une grille {len(la)} × {len(lo_)} ; {filled} mailles sur {missing} sans valeur reprises d'une voisine")
         fields[name] = (v, lo, hi)
         counts[name] = n
         ok = mask & ~np.isnan(v[0])

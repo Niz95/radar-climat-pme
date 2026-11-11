@@ -80,6 +80,11 @@ const polygonsOf = (g) => (g.type === "Polygon" ? [g.coordinates] : g.type === "
 function findRegion(lat, lon) {
   const inside = state.nuts.features.find((f) => polygonsOf(f.geometry).some((p) => inPolygon(lon, lat, p)));
   if (inside) return { region: inside, nearKm: 0 };
+  // Trou qu'aucune région ne comble : un micro-État enclavé (le Vatican dans le Latium). À cette
+  // échelle, le trou déborde de plusieurs kilomètres sur la ville qui l'entoure : le centre de Rome y
+  // tombe. Le point appartient donc très probablement à la région englobante.
+  const around = state.nuts.features.find((f) => polygonsOf(f.geometry).some((p) => inRing(lon, lat, p[0])));
+  if (around) return { region: around, nearKm: 0 };
   let best = { region: null, nearKm: 0 };
   let bestKm = NEAR_KM;
   for (const f of state.nuts.features) {
@@ -743,7 +748,7 @@ function annex(site, hazards) {
       <li>Sensibilité : note sectorielle d'expert, relevée d'un cran, et d'un seul, dès qu'une réponse « oui » du questionnaire concerne l'aléa (thèmes du guide européen). ${COMPANY_QUESTIONS.length} questions décrivent l'entreprise et valent pour tous ses sites, ${SITE_QUESTIONS.length} décrivent un lieu et se posent pour chaque site. « Non » et « ne sait pas » laissent la note du secteur. Une sensibilité élevée donne un niveau Moyen même quand l'exposition est faible.</li>
       <li>Vent : le seul indicateur disponible est défini par rapport au climat local. Sans hausse d'au moins 15 %, l'aléa est noté « Stable » : le niveau de risque de tempête actuel n'est pas mesuré.</li>
       <li>Tendance : ↑ ou ↑↑ si un indicateur augmente d'au moins ${TREND_PCT[0]} % ou ${TREND_PCT[1]} % par rapport à ${esc(REF)}, comptée seulement pour un indicateur qui atteint lui-même au moins Moyen, et affichée seulement quand le risque est au moins Moyen.</li>
-      <li>Données : Copernicus C3S, « Climate indicators for Europe » v2.0 (CDS, CC-BY 4.0) : séries annuelles par modèle sur une grille de 0,25°, issues de 9 couples de modèles EURO-CORDEX corrigés de leurs biais, sous deux scénarios (RCP4.5 et RCP8.5), soit 18 simulations (10 pour le danger d'incendie).</li>
+      <li>Données : Copernicus C3S, « Climate indicators for Europe » v2.0 (CDS, CC-BY 4.0) : séries annuelles par modèle sur une grille de 0,25°, issues de 9 couples de modèles EURO-CORDEX corrigés de leurs biais, sous deux scénarios (RCP4.5 et RCP8.5), soit 18 simulations (10 pour le danger d'incendie). Le danger d'incendie est fourni sur une autre grille, sans valeur au bord de la mer et des grands lacs : une maille sans valeur reprend celle de la maille voisine la plus proche (35 km au plus).</li>
       <li>Niveaux de réchauffement : recalculés avec la méthode de l'Atlas du GIEC. Pour chaque simulation, moyenne sur les 20 ans centrés sur l'année où son modèle global atteint +1,5 °C, +2 °C ou +3 °C. La valeur affichée est la référence plus la moyenne des écarts des simulations ; à +3 °C, 12 simulations seulement atteignent le niveau.</li>
       <li>Contraste local : la même règle est appliquée aux valeurs extrêmes des mailles terrestres situées à ${CELL_MAX_KM} km au plus du site. Si le niveau change, les valeurs des alentours sont affichées ; à deux crans d'écart, la synthèse le signale.</li>
       <li>Maille : on retient la maille terrestre dont le centre est le plus proche du site, jusqu'à ${CELL_MAX_KM} km. Sans maille (outre-mer, îles éloignées), l'outil revient à la moyenne régionale NUTS 2 du jeu « Aggregated climate indicators for Europe ».</li>
@@ -797,6 +802,14 @@ function exportCsv() {
 
 // --- Rapport -----------------------------------------------------------------
 
+// Pays présents dans les contours NUTS 2 utilisés (web/data/nuts2.geojson).
+const COVERAGE =
+  "L'outil couvre l'Union européenne, le Royaume-Uni, la Suisse, le Liechtenstein, la Norvège, l'Islande, la Turquie et les Balkans occidentaux.";
+
+// Ligne visible seulement à l'impression : un PDF transmis à un tiers doit dire d'où il vient et de quand il date.
+const printStamp = () =>
+  `<p class="print-only">Rapport produit le ${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} avec Radar climat PME (https://niz95.github.io/radar-climat-pme/). Premier repérage à titre d'information : ni conseil professionnel, ni notation.</p>`;
+
 // Sous le rapport : c'est en lisant ses propres résultats qu'un visiteur repère une note absurde.
 const FEEDBACK = `<p class="feedback">Un résultat vous surprend, ou une question est mal posée ?
   <a href="mentions.html#contact">Écrivez à l'auteur</a> ou
@@ -819,7 +832,8 @@ function renderReport() {
 
   if (!site.region) {
     report.innerHTML = `<section class="layer"><h2>${esc(site.title)}</h2>
-      <p>Ce point est à plus de ${NEAR_KM} km de toute région couverte (hors Europe ou en mer). Essayez une autre adresse.</p></section>`;
+      <div class="banner">Ce lieu n'est pas couvert par les données.</div>
+      <p>Il est à plus de ${NEAR_KM} km de toute région couverte : pays hors du périmètre des données, ou pleine mer. ${COVERAGE} Essayez une autre adresse.</p></section>`;
     return;
   }
   regionLayer.addData(site.region);
@@ -845,7 +859,7 @@ function renderReport() {
   }
   const g = state.gwl;
   renderEffects(site, hazards);
-  report.innerHTML = synthesis(site, hazards, g) + detail(site, hazards, g) + annex(site, hazards) + FEEDBACK;
+  report.innerHTML = printStamp() + synthesis(site, hazards, g) + detail(site, hazards, g) + annex(site, hazards) + FEEDBACK;
   $("#csv").onclick = exportCsv;
 }
 
